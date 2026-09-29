@@ -1,0 +1,147 @@
+/* ============================================================
+   Marca TRANSDA / Don Arturo — tokens y componentes base
+   Cambiar colores SOLO aquí (sección :root).
+   ============================================================ */
+:root {
+  --ar-azul: #2A4798;        /* azul TRANSDA (tomado del logo) */
+  --ar-azul-osc: #21294F;    /* navy del texto del logo */
+  --ar-azul-claro: #E8EDF8;
+  --ar-acento: #2A4798;      /* PENDIENTE: color de acento institucional Don Arturo */
+
+  --ar-fondo: #F4F6FA;
+  --ar-superficie: #FFFFFF;
+  --ar-texto: #1B2033;
+  --ar-texto-2: #5B6275;
+  --ar-borde: #D9DEE8;
+
+  /* Estados (semáforo) */
+  --ar-ok: #1E8E3E;      --ar-ok-bg: #E6F4EA;
+  --ar-ambar: #B26A00;   --ar-ambar-bg: #FFF3DC;
+  --ar-rojo: #C5221F;    --ar-rojo-bg: #FCE8E6;
+  --ar-info: #1967D2;    --ar-info-bg: #E8F0FE;
+  --ar-gris: #5F6368;    --ar-gris-bg: #F1F3F4;
+
+  --ar-radio: 12px;
+  --ar-sombra: 0 1px 2px rgba(20, 30, 60, .08), 0 4px 12px rgba(20, 30, 60, .06);
+  --ar-fuente: "Segoe UI", Roboto, "Helvetica Neue", Arial, system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; font-family: var(--ar-fuente); font-size: 16px; line-height: 1.45;
+  color: var(--ar-texto); background: var(--ar-fondo);
+}
+
+/* Encabezado */
+.ar-header {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top));
+  background: var(--ar-azul); color: #fff;
+}
+.ar-header img { height: 38px; width: auto; }
+.ar-header h1 { font-size: 17px; margin: 0; font-weight: 700; line-height: 1.2; }
+.ar-header small { display: block; font-size: 12px; opacity: .85; font-weight: 400; }
+.ar-header .ar-espacio { flex: 1; }
+
+.ar-main { max-width: 760px; margin: 0 auto; padding: 16px; padding-bottom: 96px; }
+
+/* Tarjetas y secciones */
+.ar-card {
+  background: var(--ar-superficie); border: 1px solid var(--ar-borde);
+  border-radius: var(--ar-radio); box-shadow: var(--ar-sombra);
+  padding: 16px; margin-bottom: 14px;
+}
+.ar-card h2 { font-size: 16px; margin: 0 0 12px; color: var(--ar-azul-osc); display: flex; align-items: center; gap: 8px; }
+.ar-paso { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; background: var(--ar-azul); color: #fff;
+  align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex: none; }
+
+/* Formularios */
+.ar-campo { margin-bottom: 14px; }
+.ar-campo label, .ar-label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; color: var(--ar-texto); }
+.ar-campo .ar-ayuda { font-size: 12.5px; color: var(--ar-texto-2); margin-top: 4px; }
+.ar-input, .ar-select, .ar-textarea {
+  width: 100%; min-height: 48px; padding: 12px 14px; font: inherit; font-size: 16px; /* 16px evita zoom en iOS */
+  color: var(--ar-texto); background: #fff; border: 1.5px solid var(--ar-borde); border-radius: 10px;
+  appearance: none; -webkit-appearance: none;
+}
+.ar-textarea { min-height: 96px; resize: vertical; }
+.ar-input:focus, .ar-select:focus, .ar-textarea:focus { outline: none; border-color: var(--ar-azul); box-shadow: 0 0 0 3px rgba(42, 71, 152, .18); }
+.ar-select { background-image: linear-gradient(45deg, transparent 50%, var(--ar-texto-2) 50%), linear-gradient(135deg, var(--ar-texto-2) 50%, transparent 50%);
+  background-position: calc(100% - 20px) 21px, calc(100% - 15px) 21px; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 36px; }
+
+/* Opciones tipo botón (radio grandes) */
+.ar-opciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.ar-opcion { position: relative; }
+.ar-opcion input { position: absolute; opacity: 0; pointer-events: none; }
+.ar-opcion span {
+  display: flex; align-items: center; justify-content: center; text-align: center; min-height: 52px; padding: 8px 10px;
+  border: 1.5px solid var(--ar-borde); border-radius: 10px; background: #fff; font-weight: 600; font-size: 15px; cursor: pointer;
+}
+.ar-opcion input:checked + span { border-color: var(--ar-azul); background: var(--ar-azul-claro); color: var(--ar-azul-osc); box-shadow: inset 0 0 0 1px var(--ar-azul); }
+.ar-opcion input:focus-visible + span { outline: 3px solid rgba(42, 71, 152, .35); }
+
+/* Botones */
+.ar-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 48px; padding: 12px 18px; border: 0; border-radius: 10px; font: inherit; font-weight: 700; font-size: 16px;
+  background: var(--ar-azul); color: #fff; cursor: pointer; text-decoration: none; -webkit-tap-highlight-color: transparent;
+}
+.ar-btn:active { transform: translateY(1px); }
+.ar-btn[disabled] { opacity: .5; cursor: not-allowed; }
+.ar-btn-sec { background: #fff; color: var(--ar-azul); border: 1.5px solid var(--ar-azul); }
+.ar-btn-ok { background: var(--ar-ok); }
+.ar-btn-wa { background: #1FAF53; }
+.ar-btn-peligro { background: var(--ar-rojo); }
+.ar-btn-bloque { width: 100%; }
+.ar-btn-grande { min-height: 58px; font-size: 17px; }
+.ar-fila-btn { display: flex; gap: 10px; flex-wrap: wrap; }
+.ar-fila-btn > * { flex: 1 1 160px; }
+
+/* Barra inferior fija (acción principal en móvil) */
+.ar-barra-inf {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, .96); border-top: 1px solid var(--ar-borde); backdrop-filter: blur(6px);
+}
+.ar-barra-inf .ar-btn { width: 100%; max-width: 728px; margin: 0 auto; display: flex; }
+
+/* Chips de estado */
+.ar-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.ar-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.ar-chip.ok { color: var(--ar-ok); background: var(--ar-ok-bg); }
+.ar-chip.ambar { color: var(--ar-ambar); background: var(--ar-ambar-bg); }
+.ar-chip.rojo { color: var(--ar-rojo); background: var(--ar-rojo-bg); }
+.ar-chip.info { color: var(--ar-info); background: var(--ar-info-bg); }
+.ar-chip.gris { color: var(--ar-gris); background: var(--ar-gris-bg); }
+
+/* Fotos */
+.ar-fotos { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.ar-foto { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--ar-gris-bg); border: 1px solid var(--ar-borde); }
+.ar-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ar-foto button { position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .6); color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
+.ar-foto-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; aspect-ratio: 1;
+  border: 2px dashed var(--ar-borde); border-radius: 10px; color: var(--ar-azul); font-weight: 700; font-size: 13px; cursor: pointer; background: #fff; }
+.ar-foto-add input { display: none; }
+
+/* Avisos */
+.ar-aviso { padding: 12px 14px; border-radius: 10px; font-size: 14px; margin-bottom: 12px; border: 1px solid transparent; }
+.ar-aviso.ok { background: var(--ar-ok-bg); color: #135E2A; border-color: #BFE3C9; }
+.ar-aviso.ambar { background: var(--ar-ambar-bg); color: #7A4A00; border-color: #F5D9A3; }
+.ar-aviso.rojo { background: var(--ar-rojo-bg); color: #8C1A17; border-color: #F4C4C0; }
+.ar-aviso.info { background: var(--ar-info-bg); color: #174EA6; border-color: #C6DAFC; }
+
+.ar-toast { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 99; max-width: calc(100% - 32px);
+  padding: 12px 16px; border-radius: 10px; color: #fff; background: #1B2033; font-size: 14.5px; box-shadow: var(--ar-sombra); }
+.ar-toast.rojo { background: var(--ar-rojo); } .ar-toast.ok { background: var(--ar-ok); }
+
+.ar-kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; font-size: 14.5px; margin: 0; }
+.ar-kv dt { color: var(--ar-texto-2); } .ar-kv dd { margin: 0; font-weight: 600; word-break: break-word; }
+.ar-mono { font-variant-numeric: tabular-nums; }
+.ar-oculto { display: none !important; }
+.ar-pie { text-align: center; color: var(--ar-texto-2); font-size: 12px; margin-top: 24px; }
+
+@media (min-width: 900px) {
+  .ar-main { padding: 24px; }
+}

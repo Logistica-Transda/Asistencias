@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2A4798">
+<title>Asistencias en Ruta · TRANSDA</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<link rel="stylesheet" href="brand.css">
+<style>
+  .menu { display: grid; gap: 12px; }
+  .menu .ar-card { margin: 0; }
+  .menu a { display: flex; align-items: center; gap: 14px; padding: 18px; text-decoration: none; color: inherit; }
+  .menu .ico { width: 48px; height: 48px; border-radius: 12px; background: var(--ar-azul-claro); color: var(--ar-azul); display: flex; align-items: center; justify-content: center; flex: none; }
+  .menu b { display: block; font-size: 17px; color: var(--ar-azul-osc); }
+  .menu span { font-size: 14px; color: var(--ar-texto-2); }
+</style>
+</head>
+<body>
+<header class="ar-header">
+  <img src="assets/transda-logo-blanco.svg" alt="TRANSDA">
+  <h1>Asistencias en Ruta<small>TRANSDA · Gasolineras Don Arturo</small></h1>
+</header>
+<main class="ar-main">
+  <nav class="menu" aria-label="Aplicaciones">
+    <a class="ar-card" href="pilotos.html">
+      <div class="ico" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+      <div><b>Pilotos</b><span>Reportar una falla en ruta con foto y ubicación</span></div>
+    </a>
+    <a class="ar-card" href="mecanicos.html">
+      <div class="ico" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg></div>
+      <div><b>Mecánicos</b><span>Atender la asistencia, registrar horas y cerrar el caso</span></div>
+    </a>
+    <a class="ar-card" href="taller.html">
+      <div class="ico" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18M7 15l4-4 3 3 5-6"/></svg></div>
+      <div><b>Tablero del Taller</b><span>Asistencias activas, indicadores e historial</span></div>
+    </a>
+  </nav>
+  <p class="ar-pie"><a style="color:var(--ar-texto-2)" href="nucleo-prueba.html">Prueba técnica del sistema</a></p>
+</main>
+<script src="config.js"></script>
+<script src="core.js"></script>
+<script>AR.registrarSW();</script>
+</body>
+</html>

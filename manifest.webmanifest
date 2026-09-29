@@ -1,0 +1,15 @@
+{
+  "name": "Asistencias en Ruta TRANSDA",
+  "short_name": "Asistencias",
+  "description": "Reporte y atención de asistencias en ruta — TRANSDA / Gasolineras Don Arturo",
+  "lang": "es-GT",
+  "start_url": "index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#2A4798",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2A4798">
+<title>Prueba técnica · Asistencias en Ruta</title>
+<link rel="icon" href="assets/icon-192.png">
+<link rel="stylesheet" href="brand.css">
+<style>
+  pre { background: #0F1424; color: #DDE3F0; padding: 12px; border-radius: 10px; font-size: 12.5px; overflow: auto; max-height: 260px; white-space: pre-wrap; word-break: break-word; margin: 10px 0 0; }
+  .res { margin-top: 10px; }
+</style>
+</head>
+<body>
+<header class="ar-header">
+  <img src="assets/transda-logo-blanco.svg" alt="TRANSDA">
+  <h1>Prueba técnica del núcleo<small>Asistencias en Ruta · Fase 1</small></h1>
+</header>
+<main class="ar-main">
+  <div id="aviso"></div>
+
+  <section class="ar-card">
+    <h2><span class="ar-paso">1</span>Conexión con Google Sheets</h2>
+    <div class="ar-campo"><label for="pin">PIN (usa el de Consulta o Taller)</label>
+      <input id="pin" class="ar-input" inputmode="numeric" autocomplete="off" placeholder="PIN"></div>
+    <div class="ar-fila-btn"><button class="ar-btn" id="bCat">Probar conexión y catálogos</button></div>
+    <pre id="rCat" class="ar-oculto"></pre>
+  </section>
+
+  <section class="ar-card">
+    <h2><span class="ar-paso">2</span>GPS y departamento</h2>
+    <button class="ar-btn ar-btn-bloque" id="bGps">Obtener mi ubicación</button>
+    <pre id="rGps" class="ar-oculto"></pre>
+  </section>
+
+  <section class="ar-card">
+    <h2><span class="ar-paso">3</span>Foto comprimida</h2>
+    <div class="ar-fotos" id="fotos">
+      <label class="ar-foto-add">＋ Foto<input type="file" accept="image/*" capture="environment" id="fFoto"></label>
+    </div>
+    <pre id="rFoto" class="ar-oculto"></pre>
+  </section>
+
+  <section class="ar-card">
+    <h2><span class="ar-paso">4</span>PDF y WhatsApp</h2>
+    <div class="ar-fila-btn">
+      <button class="ar-btn" id="bPdf">Generar PDF de prueba</button>
+      <button class="ar-btn ar-btn-wa" id="bWa" disabled>Enviar por WhatsApp</button>
+    </div>
+    <pre id="rPdf" class="ar-oculto"></pre>
+  </section>
+
+  <section class="ar-card">
+    <h2><span class="ar-paso">5</span>Leer un PDF recibido</h2>
+    <input type="file" accept="application/pdf" id="fPdf" class="ar-input">
+    <pre id="rLeer" class="ar-oculto"></pre>
+  </section>
+
+  <section class="ar-card">
+    <h2><span class="ar-paso">6</span>Envíos pendientes (sin señal)</h2>
+    <p id="rCola" style="margin:0">Revisando…</p>
+    <button class="ar-btn ar-btn-sec" id="bCola" style="margin-top:10px">Reintentar ahora</button>
+  </section>
+  <p class="ar-pie">Núcleo v<span id="ver"></span> · <a href="index.html">Inicio</a></p>
+</main>
+
+<script src="config.js"></script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="core.js"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const mostrar = (id, obj) => { const el = $(id); el.classList.remove('ar-oculto'); el.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2); };
+  AR.sesion.iniciar('prueba');
+  $('ver').textContent = AR.VERSION;
+  $('pin').value = AR.sesion.pin();
+  if (!AR.api.configurada()) $('aviso').innerHTML = '<div class="ar-aviso ambar">Falta pegar la URL de Apps Script en <b>config.js</b>. Las pruebas 2 a 5 funcionan igual.</div>';
+  if (!window.isSecureContext) $('aviso').innerHTML += '<div class="ar-aviso rojo">Abre esta página desde su enlace <b>https://</b> para que funcione el GPS.</div>';
+
+  let gps = null, fotos = [], pdfBlob = null, caso = null;
+
+  $('bCat').onclick = async () => {
+    AR.sesion.guardar($('pin').value, 'Prueba técnica');
+    mostrar('rCat', 'Conectando…');
+    try {
+      const t0 = performance.now();
+      const d = await AR.catalogos.cargar(true);
+      mostrar('rCat', { conexion: 'OK', rol: d.rol, segundos: ((performance.now() - t0) / 1000).toFixed(1),
+        unidades: d.unidades.length, pilotos: d.pilotos.length, mecanicos: d.mecanicos.length, areas: d.areas.map(a => a.area), departamentos: d.departamentos.length, config: d.config });
+    } catch (e) { mostrar('rCat', '❌ ' + e.message); }
+  };
+
+  $('bGps').onclick = async () => {
+    mostrar('rGps', 'Buscando señal GPS…');
+    try {
+      gps = await AR.gps.obtener();
+      gps.departamento = await AR.geo.departamento(gps.lat, gps.lng);
+      mostrar('rGps', Object.assign({ mapa: AR.gps.mapaUrl(gps.lat, gps.lng) }, gps));
+    } catch (e) { mostrar('rGps', '❌ ' + e.message); }
+  };
+
+  $('fFoto').onchange = async (ev) => {
+    const f = ev.target.files[0]; if (!f) return;
+    try {
+      const r = await AR.fotos.comprimir(f);
+      fotos.push(r.dataUrl);
+      const div = document.createElement('div'); div.className = 'ar-foto'; div.innerHTML = '<img alt="">'; div.firstChild.src = r.dataUrl;
+      $('fotos').insertBefore(div, $('fotos').lastElementChild);
+      mostrar('rFoto', { original_kb: Math.round(f.size / 1024), comprimida_kb: r.kb, tamaño: r.ancho + '×' + r.alto });
+    } catch (e) { mostrar('rFoto', '❌ ' + e.message); }
+    ev.target.value = '';
+  };
+
+  $('bPdf').onclick = async () => {
+    const ahora = Date.now();
+    caso = {
+      correlativo: 'AR-PRUEBA-0000', estado: 'CERRADA', unidad: 'C140', cisterna: 'ER177', tipoUnidad: 'CABEZAL', componente: 'Cabezal',
+      creadoEn: new Date(ahora - 3 * 3600e3).toISOString(), creadoPor: 'Prueba', origen: 'Piloto',
+      pilotoNombre: 'Piloto de prueba', pilotoTel: '5555-5555', area: 'Llantas', descripcion: 'Reventón de llanta en eje de tracción, lado izquierdo. (Documento de PRUEBA)',
+      puedeMoverse: 'NO', conCarga: 'SI', prioridad: 'Alta',
+      lat: gps ? gps.lat : 14.3044, lng: gps ? gps.lng : -90.7852, precisionM: gps ? gps.precision : 12, departamento: gps ? gps.departamento : 'Escuintla',
+      referencia: 'Km 58 CA-9, frente a gasolinera', mecanicoNombre: 'Mecánico de prueba', mecanicoTipo: 'Interno',
+      asignadoEn: new Date(ahora - 2.6 * 3600e3).toISOString(), salidaEn: new Date(ahora - 2.5 * 3600e3).toISOString(),
+      llegadaEn: new Date(ahora - 1.6 * 3600e3).toISOString(), finEn: new Date(ahora - 0.7 * 3600e3).toISOString(), cerradoEn: new Date(ahora - 0.7 * 3600e3).toISOString(),
+      diagnostico: 'Llanta 11R22.5 con corte lateral', trabajoRealizado: 'Cambio de llanta por repuesto, torque y revisión de presión', repuestos: '1 llanta 11R22.5',
+      resultado: 'Habilitada', minAsignacion: '', minLlegada: '', minReparacion: '', minTotal: ''
+    };
+    try {
+      pdfBlob = await AR.pdf.crear('completo', caso, { reporte: fotos.slice(0, 3), cierre: fotos.slice(3) });
+      $('bWa').disabled = false;
+      mostrar('rPdf', { pdf_kb: Math.round(pdfBlob.size / 1024), nombre: AR.pdf.nombre('completo', caso), compartirArchivos: !!(navigator.canShare && navigator.canShare({ files: [new File([pdfBlob], 'x.pdf', { type: 'application/pdf' })] })) });
+      window.open(URL.createObjectURL(pdfBlob), '_blank');
+    } catch (e) { mostrar('rPdf', '❌ ' + e.message); }
+  };
+  $('bWa').onclick = () => AR.compartir(pdfBlob, AR.pdf.nombre('completo', caso), AR.textoWhatsApp('cierre', caso)).then((r) => AR.ui.toast('Resultado: ' + r));
+
+  $('fPdf').onchange = async (ev) => {
+    const f = ev.target.files[0]; if (!f) return;
+    try { mostrar('rLeer', await AR.pdf.leerDatos(f)); } catch (e) { mostrar('rLeer', '❌ ' + e.message); }
+  };
+
+  AR.on('cola', (c) => { if (c.pendientes !== null) $('rCola').textContent = c.pendientes ? c.pendientes + ' envío(s) esperando señal.' : 'No hay envíos pendientes.'; });
+  AR.api.contarCola();
+  $('bCola').onclick = () => AR.api.procesarCola().then((n) => AR.ui.toast(n + ' envío(s) completados'));
+})();
+</script>
+</body>
+</html>
