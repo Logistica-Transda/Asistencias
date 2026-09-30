@@ -7,7 +7,7 @@
   'use strict';
   const CFG = global.AR_CONFIG || {};
   const AR = {};
-  AR.VERSION = '1.1.0';
+  AR.VERSION = '1.2.0';
 
   /* ------------------------------------------------------------
      Estados, áreas y constantes de negocio
@@ -587,6 +587,59 @@
       navigator.serviceWorker.register('sw.js').catch(function (e) { console.warn('SW', e); });
     }
   };
+
+  /* ------------------------------------------------------------
+     Fotos guardadas en Drive (se piden a la API con PIN) — con caché
+     ------------------------------------------------------------ */
+  const cacheFotos = {};
+  AR.fotoRemota = function (fileId) {
+    if (!fileId) return Promise.reject(new Error('Sin foto'));
+    if (!cacheFotos[fileId]) {
+      cacheFotos[fileId] = AR.api.llamar('foto', { fileId: fileId }).then(function (r) {
+        return 'data:' + r.mime + ';base64,' + r.base64;
+      }).catch(function (e) { delete cacheFotos[fileId]; throw e; });
+    }
+    return cacheFotos[fileId];
+  };
+  AR.idsFotos = function (txt) { return String(txt || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean); };
+
+  /* ------------------------------------------------------------
+     Firma en pantalla (dedo o mouse)
+     ------------------------------------------------------------ */
+  AR.firma = function (canvas) {
+    const ctx = canvas.getContext('2d');
+    let dibujando = false, vacia = true, ultimo = null;
+    function ajustar() {
+      const r = canvas.getBoundingClientRect(), dpr = global.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.round(r.width * dpr)); canvas.height = Math.max(1, Math.round(r.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1B2033';
+      vacia = true;
+    }
+    function punto(e) { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+    canvas.style.touchAction = 'none';
+    canvas.addEventListener('pointerdown', function (e) { dibujando = true; ultimo = punto(e); canvas.setPointerCapture(e.pointerId); });
+    canvas.addEventListener('pointermove', function (e) {
+      if (!dibujando) return; const p = punto(e);
+      ctx.beginPath(); ctx.moveTo(ultimo.x, ultimo.y); ctx.lineTo(p.x, p.y); ctx.stroke(); ultimo = p; vacia = false;
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) { canvas.addEventListener(ev, function () { dibujando = false; }); });
+    ajustar();
+    return {
+      limpiar: ajustar,
+      vacia: function () { return vacia; },
+      dataUrl: function () {
+        if (vacia) return '';
+        // fondo blanco para que se vea en el PDF
+        const c = document.createElement('canvas'); c.width = canvas.width; c.height = canvas.height;
+        const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(canvas, 0, 0);
+        return c.toDataURL('image/png');
+      }
+    };
+  };
+
+  AR.gps.rutaUrl = function (lat, lng) { return lat && lng ? 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng : ''; };
+  AR.horasDesde = function (iso) { return iso ? (Date.now() - new Date(iso)) / 3600e3 : 0; };
 
   global.AR = AR;
 })(window);

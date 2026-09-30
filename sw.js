@@ -1,5 +1,5 @@
 /* Service worker — permite abrir las apps sin señal. Sube VERSION al publicar cambios. */
-const VERSION = 'ar-transda-v1.1.0';
+const VERSION = 'ar-transda-v1.2.0';
 const ARCHIVOS = [
   './', 'index.html', 'pilotos.html', 'mecanicos.html', 'taller.html', 'nucleo-prueba.html',
   'config.js', 'core.js', 'brand.css', 'manifest.webmanifest',

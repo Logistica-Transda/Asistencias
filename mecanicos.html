@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2A4798">
+<title>Mecánicos · Asistencias en Ruta</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<link rel="stylesheet" href="brand.css">
+<style>
+  .usuario { font-size: 12.5px; opacity: .9; text-align: right; line-height: 1.2; }
+  .usuario button { background: none; border: 0; color: #fff; text-decoration: underline; font: inherit; font-size: 12px; padding: 0; cursor: pointer; }
+  .barra-lista { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .barra-lista h2 { margin: 0; font-size: 17px; flex: 1; color: var(--ar-azul-osc); }
+  .caso { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; border-left: 5px solid var(--ar-borde); }
+  .caso.ok { border-left-color: var(--ar-ok); } .caso.ambar { border-left-color: var(--ar-ambar); } .caso.rojo { border-left-color: var(--ar-rojo); }
+  .caso .l1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .caso .l1 b { font-size: 17px; color: var(--ar-azul-osc); }
+  .caso .l2 { margin: 6px 0; font-size: 14.5px; }
+  .caso .l3 { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--ar-texto-2); }
+  .mio { font-size: 11.5px; font-weight: 700; color: var(--ar-azul); background: var(--ar-azul-claro); border-radius: 6px; padding: 2px 7px; margin-left: 6px; }
+  .vacio { text-align: center; color: var(--ar-texto-2); padding: 28px 12px; }
+  .volver { background: none; border: 0; color: var(--ar-azul); font: inherit; font-weight: 700; padding: 6px 0; margin-bottom: 8px; cursor: pointer; }
+  .acciones-contacto { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .acciones-contacto .ar-btn { min-height: 44px; padding: 8px; font-size: 14px; }
+  .pasos { list-style: none; margin: 0; padding: 0; }
+  .paso { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--ar-borde); }
+  .paso:first-child { border-top: 0; }
+  .paso .dot { width: 30px; height: 30px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; background: var(--ar-gris-bg); color: var(--ar-gris); }
+  .paso.hecho .dot { background: var(--ar-ok); color: #fff; }
+  .paso.actual .dot { background: var(--ar-azul); color: #fff; }
+  .paso .txt { flex: 1; } .paso .txt b { display: block; } .paso .txt small { color: var(--ar-texto-2); }
+  .firma-caja { border: 1.5px dashed var(--ar-borde); border-radius: 10px; background: #fff; height: 150px; position: relative; }
+  .firma-caja canvas { width: 100%; height: 100%; display: block; border-radius: 10px; }
+  .firma-caja span { position: absolute; left: 12px; bottom: 8px; font-size: 12px; color: var(--ar-texto-2); pointer-events: none; }
+  .req::after { content: " *"; color: var(--ar-rojo); }
+  .grua { background: var(--ar-ambar-bg); border-radius: 10px; padding: 12px; margin-top: 12px; }
+  .foto-remota { cursor: zoom-in; }
+  .visor { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 100; display: flex; align-items: center; justify-content: center; }
+  .visor img { max-width: 100%; max-height: 100%; }
+</style>
+</head>
+<body>
+<header class="ar-header">
+  <img src="assets/transda-logo-blanco.svg" alt="TRANSDA">
+  <h1>Asistencia mecánica<small>Mecánicos · Asistencias en Ruta</small></h1>
+  <div class="ar-espacio"></div>
+  <div class="usuario ar-oculto" id="hdrUsuario"><span id="hdrNombre"></span><br><button type="button" id="bSalir">Cambiar mecánico</button></div>
+</header>
+
+<main class="ar-main">
+  <div id="avisoCola" class="ar-aviso ambar ar-oculto" role="status"></div>
+
+  <!-- ===================== IDENTIFICACIÓN ===================== -->
+  <section id="vLogin" class="ar-oculto">
+    <div class="ar-card">
+      <h2>Identifícate</h2>
+      <div class="ar-campo">
+        <label class="req" for="lPin">PIN de mecánicos</label>
+        <input id="lPin" class="ar-input" type="password" inputmode="numeric" autocomplete="off">
+      </div>
+      <div class="ar-campo">
+        <label class="req" for="lNombre">Tu nombre</label>
+        <input id="lNombre" class="ar-input" list="dlMecanicos" autocomplete="off" placeholder="Escribe y elige de la lista">
+        <datalist id="dlMecanicos"></datalist>
+      </div>
+      <span class="ar-label">Tipo</span>
+      <div class="ar-opciones" style="margin-bottom:14px">
+        <label class="ar-opcion"><input type="radio" name="lTipo" value="Interno" checked><span>Interno TRANSDA</span></label>
+        <label class="ar-opcion"><input type="radio" name="lTipo" value="Externo"><span>Taller externo</span></label>
+      </div>
+      <div class="ar-campo ar-oculto" id="lTallerCampo">
+        <label for="lTaller">Nombre del taller</label>
+        <input id="lTaller" class="ar-input" placeholder="Ej. Taller Los Amigos, Escuintla">
+      </div>
+      <div class="ar-campo">
+        <label for="lTel">Tu teléfono</label>
+        <input id="lTel" class="ar-input" type="tel" inputmode="tel" placeholder="5555-5555">
+      </div>
+      <div id="lError" class="ar-aviso rojo ar-oculto"></div>
+      <button class="ar-btn ar-btn-bloque ar-btn-grande" id="bEntrar" type="button">Entrar</button>
+    </div>
+  </section>
+
+  <!-- ===================== LISTA ===================== -->
+  <section id="vLista" class="ar-oculto">
+    <div class="barra-lista">
+      <h2>Asistencias activas</h2>
+      <button class="ar-btn ar-btn-sec" id="bRefrescar" type="button" style="min-height:40px;padding:8px 14px">Actualizar</button>
+    </div>
+    <p id="actualizado" style="margin:-6px 0 12px;font-size:12.5px;color:var(--ar-texto-2)"></p>
+    <div id="lista"></div>
+    <div class="ar-card" style="margin-top:18px">
+      <h2 style="font-size:15px">¿Te enviaron el PDF por WhatsApp?</h2>
+      <p style="margin:0 0 10px;font-size:14px;color:var(--ar-texto-2)">Ábrelo aquí para ir directo a esa asistencia.</p>
+      <label class="ar-btn ar-btn-sec ar-btn-bloque" style="cursor:pointer">Abrir PDF recibido<input type="file" accept="application/pdf" id="fPdf" hidden></label>
+    </div>
+    <p class="ar-pie">¿No aparece la asistencia? Pide al taller que la registre en el tablero.</p>
+  </section>
+
+  <!-- ===================== DETALLE ===================== -->
+  <section id="vCaso" class="ar-oculto">
+    <button class="volver" type="button" id="bVolver">← Asistencias activas</button>
+
+    <div class="ar-card" id="cResumen"></div>
+
+    <div class="ar-card">
+      <h2>Avance de la atención</h2>
+      <ol class="pasos" id="pasos"></ol>
+      <div id="accionPrincipal" style="margin-top:12px"></div>
+    </div>
+
+    <!-- Cierre -->
+    <form class="ar-card ar-oculto" id="fCierre" novalidate>
+      <h2><span class="ar-paso">✓</span>Cierre del trabajo</h2>
+      <div class="ar-campo">
+        <label class="req" for="cDiag">Diagnóstico</label>
+        <textarea id="cDiag" class="ar-textarea" placeholder="¿Qué encontraste? Causa de la falla."></textarea>
+      </div>
+      <div class="ar-campo">
+        <label class="req" for="cTrabajo">Trabajo realizado</label>
+        <textarea id="cTrabajo" class="ar-textarea" placeholder="¿Qué se hizo para resolverlo?"></textarea>
+      </div>
+      <div class="ar-campo">
+        <label for="cRep">Repuestos utilizados</label>
+        <input id="cRep" class="ar-input" placeholder="Ej. 1 llanta 11R22.5, 2 abrazaderas">
+      </div>
+      <span class="ar-label req">Resultado</span>
+      <div class="ar-opciones">
+        <label class="ar-opcion"><input type="radio" name="resultado" value="HABILITADA"><span>✅ Unidad habilitada</span></label>
+        <label class="ar-opcion"><input type="radio" name="resultado" value="GRUA"><span>🚛 Requiere grúa</span></label>
+      </div>
+      <div class="grua ar-oculto" id="cGrua">
+        <div class="ar-campo"><label for="cGruaProv">Proveedor de grúa</label><input id="cGruaProv" class="ar-input" placeholder="Nombre de la empresa de grúas"></div>
+        <div class="ar-campo"><label for="cGruaDest">Destino</label><input id="cGruaDest" class="ar-input" placeholder="Ej. Taller central, Escuintla"></div>
+        <div class="ar-campo" style="margin:0"><label for="cGruaMot">¿Por qué requiere grúa?</label><input id="cGruaMot" class="ar-input" placeholder="Ej. Motor fundido, no se puede reparar en ruta"></div>
+      </div>
+      <div class="ar-campo" style="margin-top:14px">
+        <span class="ar-label">Fotos del trabajo <small style="font-weight:400;color:var(--ar-texto-2)">(hasta 4)</small></span>
+        <div class="ar-fotos" id="cFotos">
+          <label class="ar-foto-add" id="cFotoAdd">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+            Tomar foto<input type="file" accept="image/*" capture="environment" id="cFoto">
+          </label>
+        </div>
+      </div>
+      <div class="ar-campo">
+        <span class="ar-label">Firma del mecánico</span>
+        <div class="firma-caja"><canvas id="cFirma"></canvas><span>Firma aquí con el dedo</span></div>
+        <button type="button" class="volver" id="bBorrarFirma" style="font-weight:600">Borrar firma</button>
+      </div>
+      <div class="ar-campo">
+        <label for="cObs">Observaciones</label>
+        <input id="cObs" class="ar-input" placeholder="Opcional">
+      </div>
+      <div id="cError" class="ar-aviso rojo ar-oculto"></div>
+      <button class="ar-btn ar-btn-ok ar-btn-bloque ar-btn-grande" type="submit" id="bCerrar">Cerrar asistencia</button>
+    </form>
+
+    <!-- Después del cierre -->
+    <div class="ar-card ar-oculto" id="cListo">
+      <div class="ar-aviso ok" id="cListoTxt" style="margin-bottom:12px"></div>
+      <button class="ar-btn ar-btn-wa ar-btn-bloque ar-btn-grande" id="bWa" type="button">Enviar PDF de cierre por WhatsApp</button>
+      <button class="ar-btn ar-btn-sec ar-btn-bloque" id="bDescargar" type="button" style="margin-top:10px">Descargar PDF</button>
+    </div>
+  </section>
+
+  <p class="ar-pie">Asistencias en Ruta · TRANSDA · <a href="index.html" style="color:inherit">Inicio</a></p>
+</main>
+
+<script src="config.js"></script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="core.js"></script>
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const U = AR.util;
+  AR.sesion.iniciar('mecanico');
+  AR.registrarSW();
+
+  const MAX_FOTOS = 4;
+  let casos = AR.store.get('mec.casos', []);   // última lista conocida (para trabajar sin señal)
+  let actual = null;                           // caso abierto
+  let fotosCierre = [];
+  let firma = null;
+  let ultimoCierre = null;                     // {caso, fotosReporte, fotosCierre, firma}
+
+  const perfil = () => AR.store.get('mec.perfil', null);
+  const overrides = () => AR.store.get('mec.overrides', {});   // cambios hechos aquí aún no confirmados
+  function setOverride(id, campos) { const o = overrides(); o[id] = Object.assign(o[id] || {}, campos); AR.store.set('mec.overrides', o); }
+  function conOverrides(c) { const o = overrides()[c.id]; return o ? Object.assign({}, c, o) : c; }
+  const esMio = (c) => { const p = perfil(); return p && c.mecanicoNombre && c.mecanicoNombre.toLowerCase() === p.nombre.toLowerCase(); };
+
+  function mostrar(v) { ['vLogin', 'vLista', 'vCaso'].forEach((id) => $(id).classList.toggle('ar-oculto', id !== v)); window.scrollTo(0, 0); }
+  function pintarUsuario() {
+    const p = perfil(); $('hdrUsuario').classList.toggle('ar-oculto', !p);
+    if (p) $('hdrNombre').textContent = p.nombre.split(' ').slice(0, 2).join(' ') + (p.tipo === 'Externo' ? ' (ext.)' : '');
+  }
+
+  /* -------------------- identificación -------------------- */
+  document.querySelectorAll('input[name=lTipo]').forEach((r) => r.addEventListener('change', () => {
+    $('lTallerCampo').classList.toggle('ar-oculto', valor('lTipo') !== 'Externo');
+  }));
+  function valor(n) { const r = document.querySelector('input[name=' + n + ']:checked'); return r ? r.value : ''; }
+  function llenarMecanicos(d) {
+    $('dlMecanicos').innerHTML = ((d && d.mecanicos) || []).map((m) => '<option value="' + U.esc(m.nombre) + '">' + U.esc([m.tipo, m.taller, m.region].filter(Boolean).join(' · ')) + '</option>').join('');
+  }
+  $('lPin').addEventListener('change', async () => {
+    AR.sesion.guardar($('lPin').value, $('lNombre').value);
+    try { llenarMecanicos(await AR.catalogos.cargar(true)); } catch (e) { /* se valida al entrar */ }
+  });
+  $('lNombre').addEventListener('change', () => {
+    const m = ((AR.catalogos.datos && AR.catalogos.datos.mecanicos) || []).find((x) => x.nombre === $('lNombre').value);
+    if (!m) return;
+    const r = document.querySelector('input[name=lTipo][value="' + (m.tipo === 'Externo' ? 'Externo' : 'Interno') + '"]'); r.checked = true; r.dispatchEvent(new Event('change'));
+    if (m.taller) $('lTaller').value = m.taller; if (m.tel) $('lTel').value = m.tel;
+  });
+  $('bEntrar').addEventListener('click', async () => {
+    const err = (m) => { $('lError').textContent = m; $('lError').classList.remove('ar-oculto'); };
+    $('lError').classList.add('ar-oculto');
+    const pin = $('lPin').value.trim(), nombre = $('lNombre').value.trim();
+    if (!pin) return err('Escribe el PIN.');
+    if (nombre.length < 4) return err('Escribe tu nombre.');
+    if (valor('lTipo') === 'Externo' && !$('lTaller').value.trim()) return err('Escribe el nombre del taller.');
+    AR.sesion.guardar(pin, nombre);
+    $('bEntrar').disabled = true; $('bEntrar').textContent = 'Verificando…';
+    try {
+      const d = await AR.catalogos.cargar(true);
+      if (d.rol !== 'mecanico' && d.rol !== 'taller') throw new Error('Este PIN no es de mecánicos.');
+    } catch (e) {
+      $('bEntrar').disabled = false; $('bEntrar').textContent = 'Entrar';
+      if (!e.red) { AR.sesion.salir(); return err(e.message); }
+      return err('Sin señal. Necesitas internet la primera vez.');
+    }
+    AR.store.set('mec.perfil', { nombre, tipo: valor('lTipo'), taller: $('lTaller').value.trim(), tel: $('lTel').value.trim() });
+    $('bEntrar').disabled = false; $('bEntrar').textContent = 'Entrar';
+    iniciar();
+  });
+  $('bSalir').addEventListener('click', () => {
+    let ok = true; try { ok = confirm('¿Cambiar de mecánico en este celular?'); } catch (e) { /* sin diálogo */ }
+    if (!ok) return;
+    AR.store.del('mec.perfil'); AR.sesion.salir(); pintarUsuario(); mostrar('vLogin');
+  });
+
+  /* -------------------- lista de activas -------------------- */
+  async function refrescar(silencioso) {
+    $('bRefrescar').disabled = true;
+    try {
+      const r = await AR.api.llamar('listarActivas');
+      casos = r.asistencias; AR.store.set('mec.casos', casos); AR.store.set('mec.casosT', Date.now());
+      // si no hay envíos pendientes, lo del servidor es la verdad
+      if (!(await AR.api.contarCola())) AR.store.set('mec.overrides', {});
+      if (actual) { const n = casos.find((c) => c.id === actual.id); if (n) { actual = conOverrides(n); pintarCaso(); } }
+    } catch (e) { if (!silencioso) AR.ui.toast(e.red ? 'Sin señal: se muestra la última lista guardada.' : e.message, e.red ? '' : 'rojo'); }
+    finally { $('bRefrescar').disabled = false; pintarLista(); }
+  }
+  function pintarLista() {
+    const t = AR.store.get('mec.casosT', 0);
+    $('actualizado').textContent = t ? 'Actualizado ' + U.fechaHora(new Date(t)) : '';
+    const l = casos.map(conOverrides).sort((a, b) => (esMio(b) - esMio(a)) || (new Date(a.creadoEn) - new Date(b.creadoEn)));
+    if (!l.length) { $('lista').innerHTML = '<div class="ar-card vacio">No hay asistencias activas. 👍</div>'; return; }
+    $('lista').innerHTML = l.map((c) => {
+      const sem = AR.ui.semaforo(c.creadoEn);
+      return '<button type="button" class="ar-card caso ' + sem + '" data-id="' + U.esc(c.id) + '">' +
+        '<div class="l1"><b>' + U.esc(c.unidad) + (c.cisterna ? ' / ' + U.esc(c.cisterna) : '') + (esMio(c) ? '<span class="mio">MÍA</span>' : '') + '</b>' + AR.ui.chipEstado(c.estado) + '</div>' +
+        '<div class="l2"><b>' + U.esc(c.area) + ':</b> ' + U.esc(String(c.descripcion || '').slice(0, 110)) + '</div>' +
+        '<div class="l3"><span>⏱ ' + U.duracion(AR.horasDesde(c.creadoEn) * 60) + '</span><span>📍 ' + U.esc(c.departamento || 'Sin ubicación') + '</span>' +
+        (c.puedeMoverse === 'NO' ? '<span style="color:var(--ar-rojo);font-weight:700">No se mueve</span>' : '') +
+        (c.mecanicoNombre && !esMio(c) ? '<span>🔧 ' + U.esc(c.mecanicoNombre) + '</span>' : '') +
+        '<span>' + U.esc(c.correlativo) + '</span></div></button>';
+    }).join('');
+  }
+  $('lista').addEventListener('click', (e) => { const b = e.target.closest('.caso'); if (b) abrirCaso(b.dataset.id); });
+  $('bRefrescar').addEventListener('click', () => refrescar(false));
+  $('fPdf').addEventListener('change', async (ev) => {
+    const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+    try {
+      const d = await AR.pdf.leerDatos(f);
+      await refrescar(true);
+      const c = casos.find((x) => x.id === d.caso.uid || x.id === d.caso.id || (d.caso.correlativo && x.correlativo === d.caso.correlativo));
+      if (!c) return AR.ui.toast('Esa asistencia ya no está activa o aún no llega al sistema.', 'rojo', 6000);
+      abrirCaso(c.id);
+    } catch (e) { AR.ui.toast(e.message, 'rojo', 6000); }
+  });
+
+  /* -------------------- detalle del caso -------------------- */
+  function abrirCaso(id) {
+    const c = casos.find((x) => x.id === id); if (!c) return;
+    actual = conOverrides(c);
+    fotosCierre = []; ultimoCierre = null;
+    $('fCierre').classList.add('ar-oculto');
+    cargarBorradorCierre();
+    pintarCaso();
+    mostrar('vCaso');
+    // cargarFotosReporte() se llama desde pintarCaso()
+  }
+  $('bVolver').addEventListener('click', () => { actual = null; pintarLista(); mostrar('vLista'); });
+
+  function pintarCaso() {
+    const c = actual; if (!c) return;
+    const ruta = AR.gps.rutaUrl(c.lat, c.lng), tel = c.pilotoTel;
+    $('cResumen').innerHTML =
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><div style="font-size:13px;color:var(--ar-texto-2)">' + U.esc(c.correlativo) + '</div>' +
+      '<div style="font-size:22px;font-weight:800;color:var(--ar-azul-osc)">' + U.esc(c.unidad) + (c.cisterna ? ' <span style="font-size:15px;font-weight:600">/ ' + U.esc(c.cisterna) + '</span>' : '') + '</div></div>' + AR.ui.chipEstado(c.estado) + '</div>' +
+      '<dl class="ar-kv" style="margin-top:12px">' +
+      '<dt>Reportado</dt><dd>' + U.fechaHora(c.creadoEn) + ' <span style="font-weight:400;color:var(--ar-texto-2)">(hace ' + U.duracion(AR.horasDesde(c.creadoEn) * 60) + ')</span></dd>' +
+      '<dt>Área</dt><dd>' + U.esc(c.area) + (c.componente ? ' · ' + U.esc(c.componente) : '') + '</dd>' +
+      '<dt>Falla</dt><dd>' + U.esc(c.descripcion) + '</dd>' +
+      '<dt>Situación</dt><dd>' + (c.puedeMoverse === 'NO' ? '<span style="color:var(--ar-rojo)">No puede moverse</span>' : 'Puede moverse') + ' · ' + (c.conCarga === 'SI' ? '<span style="color:var(--ar-ambar)">Con carga</span>' : 'Vacía') + '</dd>' +
+      '<dt>Lugar</dt><dd>' + U.esc([c.departamento, c.referencia].filter(Boolean).join(' · ') || 'Sin ubicación') + '</dd>' +
+      '<dt>Piloto</dt><dd>' + U.esc(c.pilotoNombre || '—') + '</dd>' +
+      (c.observaciones ? '<dt>Notas</dt><dd style="white-space:pre-line">' + U.esc(c.observaciones) + '</dd>' : '') +
+      '</dl>' +
+      '<div class="acciones-contacto">' +
+      (ruta ? '<a class="ar-btn" href="' + ruta + '" target="_blank" rel="noopener">Cómo llegar</a>' : '<span class="ar-btn" style="opacity:.4">Sin GPS</span>') +
+      (tel ? '<a class="ar-btn ar-btn-sec" href="tel:' + U.esc(tel) + '">Llamar</a><a class="ar-btn ar-btn-wa" href="https://wa.me/' + U.telWa(tel) + '" target="_blank" rel="noopener">WhatsApp</a>' : '<span class="ar-btn ar-btn-sec" style="opacity:.4;grid-column:span 2">Sin teléfono</span>') +
+      '</div>' +
+      (AR.idsFotos(c.fotosReporte).length ? '<div class="ar-fotos" id="fotosRep" style="margin-top:12px">' + AR.idsFotos(c.fotosReporte).map((id) => '<div class="ar-foto foto-remota" data-f="' + U.esc(id) + '"></div>').join('') + '</div>' : '');
+    pintarPasos();
+    cargarFotosReporte();
+  }
+
+  function pintarPasos() {
+    const c = actual;
+    const mio = esMio(c);
+    const pasos = [
+      { k: 'asignado', t: 'Asistencia tomada', h: c.asignadoEn, extra: c.mecanicoNombre ? c.mecanicoNombre + (c.tallerExterno ? ' · ' + c.tallerExterno : '') : '' },
+      { k: 'salida', t: 'En camino', h: c.salidaEn },
+      { k: 'llegada', t: 'En el sitio', h: c.llegadaEn },
+      { k: 'fin', t: c.estado === 'EN_GRUA' ? 'Enviada a grúa' : 'Trabajo terminado', h: c.finEn }
+    ];
+    let actualMarcado = false;
+    $('pasos').innerHTML = pasos.map((p, i) => {
+      let cls = p.h ? 'hecho' : '';
+      if (!p.h && !actualMarcado) { cls = 'actual'; actualMarcado = true; }
+      return '<li class="paso ' + cls + '"><div class="dot">' + (p.h ? '✓' : i + 1) + '</div><div class="txt"><b>' + p.t + '</b><small>' +
+        (p.h ? U.fechaHora(p.h) + (p.extra ? ' · ' + U.esc(p.extra) : '') : 'Pendiente') + '</small></div></li>';
+    }).join('');
+
+    const box = $('accionPrincipal');
+    const cierreVisibleAntes = !$('fCierre').classList.contains('ar-oculto');
+    $('fCierre').classList.add('ar-oculto');
+    const otro = c.mecanicoNombre && !mio;
+    if (c.estado === 'EN_GRUA' || c.estado === 'CERRADA') {
+      box.innerHTML = '<div class="ar-aviso ' + (c.estado === 'EN_GRUA' ? 'ambar' : 'ok') + '">' +
+        (c.estado === 'EN_GRUA' ? 'Unidad enviada a grúa. El taller cerrará la asistencia al recibirla.' : 'Asistencia cerrada.') + '</div>';
+      return;
+    }
+    if (!c.salidaEn && !c.llegadaEn) {
+      box.innerHTML = (otro ? '<div class="ar-aviso ambar">Asignada a <b>' + U.esc(c.mecanicoNombre) + '</b>. Si vas tú, tómala.</div>' : '') +
+        '<button class="ar-btn ar-btn-bloque ar-btn-grande" id="bSalida" type="button">🚗 Voy en camino</button>' +
+        '<button class="ar-btn ar-btn-sec ar-btn-bloque" id="bLlegadaDirecta" type="button" style="margin-top:8px">Ya estoy en el sitio</button>';
+      $('bSalida').onclick = () => accionSalida();
+      $('bLlegadaDirecta').onclick = () => accionLlegada(true);
+    } else if (!c.llegadaEn) {
+      box.innerHTML = '<button class="ar-btn ar-btn-bloque ar-btn-grande" id="bLlegada" type="button">📍 Llegué al sitio</button>';
+      $('bLlegada').onclick = () => accionLlegada(false);
+    } else {
+      box.innerHTML = '';
+      $('fCierre').classList.remove('ar-oculto');
+      // el lienzo de firma se dimensiona solo al aparecer (no borra una firma ya hecha al refrescar)
+      if (!cierreVisibleAntes) setTimeout(() => { if (!firma) firma = AR.firma($('cFirma')); else firma.limpiar(); }, 30);
+    }
+  }
+
+  function datosMecanico() {
+    const p = perfil() || {};
+    return { mecanicoNombre: p.nombre, mecanicoTipo: p.tipo || 'Interno', tallerExterno: p.tipo === 'Externo' ? p.taller : '', mecanicoTel: p.tel || '' };
+  }
+
+  async function enviarEvento(evento, datos, etiqueta) {
+    const r = await AR.api.enviar('evento', { id: actual.id, evento, datos: Object.assign({ ts: new Date().toISOString() }, datos) }, etiqueta + ' ' + actual.unidad);
+    if (r.enviado && r.res.asistencia) { actual = r.res.asistencia; reemplazarCaso(actual); }
+    return r;
+  }
+  function reemplazarCaso(c) { casos = casos.map((x) => x.id === c.id ? c : x); AR.store.set('mec.casos', casos); }
+
+  async function accionSalida() {
+    const ts = new Date().toISOString();
+    const m = datosMecanico();
+    try {
+      // tomar la asistencia (asignarse) si no es suya, luego marcar salida
+      if (!esMio(actual)) await enviarEvento('ASIGNAR', Object.assign({ ts }, m), 'Asignación');
+      const r = await enviarEvento('SALIDA', Object.assign({ ts }, m), 'Salida');
+      if (!r.enviado) {
+        setOverride(actual.id, Object.assign({}, m, { asignadoEn: actual.asignadoEn || ts, salidaEn: ts, estado: 'EN_RUTA' }));
+        actual = conOverrides(actual);
+        AR.ui.toast('Sin señal: guardado, se enviará solo.');
+      } else AR.ui.toast('Registrado: vas en camino ✔', 'ok');
+      pintarCaso();
+    } catch (e) { AR.ui.toast(e.message, 'rojo', 6000); }
+  }
+
+  async function accionLlegada(directa) {
+    const ts = new Date().toISOString();
+    let pos = null;
+    AR.ui.toast('Tomando ubicación…', '', 2500);
+    try { pos = await AR.gps.obtener(20000); } catch (e) { AR.ui.toast(e.message, 'rojo', 4000); }
+    const m = datosMecanico();
+    try {
+      if (!esMio(actual)) await enviarEvento('ASIGNAR', Object.assign({ ts }, m), 'Asignación');
+      const r = await enviarEvento('LLEGADA', Object.assign({ ts, lat: pos ? pos.lat : '', lng: pos ? pos.lng : '' }, m), 'Llegada');
+      if (!r.enviado) {
+        setOverride(actual.id, Object.assign({}, m, { asignadoEn: actual.asignadoEn || ts, llegadaEn: ts, llegadaLat: pos ? pos.lat : '', llegadaLng: pos ? pos.lng : '', estado: 'EN_SITIO' }));
+        actual = conOverrides(actual);
+        AR.ui.toast('Sin señal: guardado, se enviará solo.');
+      } else AR.ui.toast('Llegada registrada ✔', 'ok');
+      pintarCaso();
+    } catch (e) { AR.ui.toast(e.message, 'rojo', 6000); }
+  }
+
+  /* -------------------- fotos -------------------- */
+  let fotosReporteData = [];
+  async function cargarFotosReporte() {
+    fotosReporteData = [];
+    const ids = AR.idsFotos(actual && actual.fotosReporte);
+    for (const id of ids) {
+      try {
+        const src = await AR.fotoRemota(id);
+        fotosReporteData.push(src);
+        const el = document.querySelector('.foto-remota[data-f="' + CSS.escape(id) + '"]');
+        if (el) { el.innerHTML = '<img alt="Foto del reporte">'; el.firstChild.src = src; el.onclick = () => verFoto(src); }
+      } catch (e) { /* sin señal */ }
+    }
+  }
+  function verFoto(src) {
+    const v = document.createElement('div'); v.className = 'visor'; v.innerHTML = '<img alt="">'; v.firstChild.src = src;
+    v.onclick = () => v.remove(); document.body.appendChild(v);
+  }
+  function pintarFotosCierre() {
+    const cont = $('cFotos'), add = $('cFotoAdd');
+    cont.querySelectorAll('.ar-foto').forEach((n) => n.remove());
+    fotosCierre.forEach((src, i) => {
+      const d = document.createElement('div'); d.className = 'ar-foto';
+      d.innerHTML = '<img alt=""><button type="button" aria-label="Quitar foto">×</button>';
+      d.querySelector('img').src = src;
+      d.querySelector('button').onclick = () => { fotosCierre.splice(i, 1); pintarFotosCierre(); };
+      cont.insertBefore(d, add);
+    });
+    add.classList.toggle('ar-oculto', fotosCierre.length >= MAX_FOTOS);
+    guardarBorradorCierre();
+  }
+  $('cFoto').addEventListener('change', async (ev) => {
+    for (const f of Array.from(ev.target.files || [])) {
+      if (fotosCierre.length >= MAX_FOTOS) break;
+      try { fotosCierre.push((await AR.fotos.comprimir(f)).dataUrl); } catch (e) { AR.ui.toast(e.message, 'rojo'); }
+    }
+    ev.target.value = ''; pintarFotosCierre();
+  });
+
+  /* -------------------- cierre -------------------- */
+  document.querySelectorAll('input[name=resultado]').forEach((r) => r.addEventListener('change', () => {
+    $('cGrua').classList.toggle('ar-oculto', valor('resultado') !== 'GRUA'); guardarBorradorCierre();
+  }));
+  ['cDiag', 'cTrabajo', 'cRep', 'cGruaProv', 'cGruaDest', 'cGruaMot', 'cObs'].forEach((id) => $(id).addEventListener('input', U.debounce(guardarBorradorCierre, 400)));
+  $('fCierre').addEventListener('input', () => $('cError').classList.add('ar-oculto'));
+  $('fCierre').addEventListener('change', () => $('cError').classList.add('ar-oculto'));
+  $('bBorrarFirma').addEventListener('click', () => firma && firma.limpiar());
+
+  function claveBorrador() { return 'mec.cierre.' + (actual ? actual.id : ''); }
+  function guardarBorradorCierre() {
+    if (!actual) return;
+    AR.store.set(claveBorrador(), { diag: $('cDiag').value, trabajo: $('cTrabajo').value, rep: $('cRep').value, res: valor('resultado'),
+      gp: $('cGruaProv').value, gd: $('cGruaDest').value, gm: $('cGruaMot').value, obs: $('cObs').value });
+    if (!AR.store.set(claveBorrador() + '.fotos', fotosCierre)) AR.store.del(claveBorrador() + '.fotos');
+  }
+  function cargarBorradorCierre() {
+    $('fCierre').reset(); $('cGrua').classList.add('ar-oculto'); $('cError').classList.add('ar-oculto');
+    $('cListo').classList.add('ar-oculto');
+    const b = AR.store.get(claveBorrador(), null);
+    fotosCierre = AR.store.get(claveBorrador() + '.fotos', []) || [];
+    if (b) {
+      $('cDiag').value = b.diag || ''; $('cTrabajo').value = b.trabajo || ''; $('cRep').value = b.rep || '';
+      $('cGruaProv').value = b.gp || ''; $('cGruaDest').value = b.gd || ''; $('cGruaMot').value = b.gm || ''; $('cObs').value = b.obs || '';
+      if (b.res) { const r = document.querySelector('input[name=resultado][value="' + b.res + '"]'); r.checked = true; $('cGrua').classList.toggle('ar-oculto', b.res !== 'GRUA'); }
+    }
+    pintarFotosCierre();
+  }
+
+  $('fCierre').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const err = (m) => { $('cError').textContent = m; $('cError').classList.remove('ar-oculto'); $('cError').scrollIntoView({ block: 'center' }); };
+    $('cError').classList.add('ar-oculto');
+    const res = valor('resultado');
+    if ($('cDiag').value.trim().length < 3) return err('Escribe el diagnóstico.');
+    if ($('cTrabajo').value.trim().length < 3) return err('Escribe el trabajo realizado.');
+    if (!res) return err('Indica si la unidad quedó habilitada o requiere grúa.');
+    if (res === 'GRUA' && !$('cGruaDest').value.trim()) return err('Indica el destino de la grúa.');
+    const firmaUrl = firma ? firma.dataUrl() : '';
+    const finEn = new Date().toISOString();
+    const cierre = Object.assign(datosMecanico(), {
+      resultado: res, finEn, diagnostico: $('cDiag').value.trim(), trabajoRealizado: $('cTrabajo').value.trim(), repuestos: $('cRep').value.trim(),
+      gruaProveedor: $('cGruaProv').value.trim(), gruaDestino: $('cGruaDest').value.trim(), gruaMotivo: $('cGruaMot').value.trim(),
+      observaciones: $('cObs').value.trim(), firma: firmaUrl,
+      salidaEn: actual.salidaEn || '', llegadaEn: actual.llegadaEn || '', llegadaLat: actual.llegadaLat || '', llegadaLng: actual.llegadaLng || ''
+    });
+    const b = $('bCerrar'); b.disabled = true; b.textContent = 'Enviando…';
+    try {
+      const r = await AR.api.enviar('cerrar', { id: actual.id, cierre, fotos: fotosCierre.map((d) => ({ dataUrl: d })) }, 'Cierre ' + actual.unidad);
+      const local = Object.assign({}, actual, {
+        finEn, diagnostico: cierre.diagnostico, trabajoRealizado: cierre.trabajoRealizado, repuestos: cierre.repuestos,
+        resultado: res === 'GRUA' ? 'Requiere grúa' : 'Habilitada', gruaProveedor: cierre.gruaProveedor, gruaDestino: cierre.gruaDestino, gruaMotivo: cierre.gruaMotivo,
+        estado: res === 'GRUA' ? 'EN_GRUA' : 'CERRADA', cerradoEn: res === 'GRUA' ? '' : finEn,
+        mecanicoNombre: cierre.mecanicoNombre, mecanicoTipo: cierre.mecanicoTipo, tallerExterno: cierre.tallerExterno, mecanicoTel: cierre.mecanicoTel
+      });
+      const caso = r.enviado ? r.res.asistencia : local;
+      if (!r.enviado) setOverride(actual.id, { estado: local.estado, finEn, resultado: local.resultado });
+      ultimoCierre = { caso, fotosReporte: fotosReporteData.slice(), fotosCierre: fotosCierre.slice(), firma: firmaUrl };
+      AR.store.del(claveBorrador()); AR.store.del(claveBorrador() + '.fotos');
+      actual = caso; if (r.enviado) reemplazarCaso(caso);
+      pintarCaso();
+      $('cListo').classList.remove('ar-oculto');
+      $('cListoTxt').innerHTML = r.enviado
+        ? '<b>Asistencia ' + U.esc(caso.correlativo) + ' ' + (res === 'GRUA' ? 'enviada a grúa' : 'cerrada') + '.</b> Tiempo total: ' + U.duracion(U.minutosEntre(caso.creadoEn, finEn))
+        : '<b>Cierre guardado sin señal.</b> Se enviará solo al tener internet. Ya puedes mandar el PDF.';
+      $('cListo').scrollIntoView({ behavior: 'smooth' });
+    } catch (e) { err(e.message); }
+    finally { b.disabled = false; b.textContent = 'Cerrar asistencia'; }
+  });
+
+  async function pdfCierre() {
+    if (!ultimoCierre) throw new Error('No hay cierre para generar.');
+    return AR.pdf.crear('cierre', ultimoCierre.caso, { reporte: ultimoCierre.fotosReporte, cierre: ultimoCierre.fotosCierre }, ultimoCierre.firma);
+  }
+  $('bWa').addEventListener('click', async () => {
+    try {
+      const blob = await pdfCierre(); const cfg = (AR.catalogos.datos && AR.catalogos.datos.config) || {};
+      await AR.compartir(blob, AR.pdf.nombre('cierre', ultimoCierre.caso), AR.textoWhatsApp('cierre', ultimoCierre.caso), cfg.whatsappTaller);
+    } catch (e) { AR.ui.toast(e.message, 'rojo'); }
+  });
+  $('bDescargar').addEventListener('click', async () => {
+    try { AR.descargar(await pdfCierre(), AR.pdf.nombre('cierre', ultimoCierre.caso)); } catch (e) { AR.ui.toast(e.message, 'rojo'); }
+  });
+
+  /* -------------------- cola sin señal -------------------- */
+  AR.on('cola', (c) => {
+    if (c.pendientes === null) return;
+    $('avisoCola').classList.toggle('ar-oculto', !c.pendientes);
+    $('avisoCola').textContent = c.pendientes ? '📶 ' + c.pendientes + ' registro(s) esperando señal. Se enviarán solos.' : '';
+  });
+  AR.on('enviado', (ev) => { const a = ev.res && ev.res.asistencia; if (a) reemplazarCaso(a); });
+  AR.on('errorCola', (ev) => AR.ui.toast('No se pudo enviar "' + ev.item.etiqueta + '": ' + ev.error, 'rojo', 9000));
+
+  /* -------------------- inicio -------------------- */
+  function iniciar() {
+    pintarUsuario(); llenarMecanicos(AR.catalogos.datos);
+    mostrar('vLista'); pintarLista();
+    AR.api.procesarCola().then(() => refrescar(true));
+    AR.catalogos.cargar().catch(() => {});
+  }
+  setInterval(() => { if (!document.hidden && perfil() && !$('vLista').classList.contains('ar-oculto')) refrescar(true); }, 60000);
+
+  llenarMecanicos(AR.catalogos.datos);
+  if (perfil() && AR.sesion.pin()) iniciar();
+  else { const p = perfil(); if (p) { $('lNombre').value = p.nombre; $('lTel').value = p.tel || ''; } mostrar('vLogin'); }
+})();
+</script>
+</body>
+</html>
