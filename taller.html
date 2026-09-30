@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2A4798">
+<title>Tablero del Taller · Asistencias en Ruta</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icon-192.png">
+<link rel="stylesheet" href="brand.css">
+<style>
+  :root {
+    --seq-100:#cde2fb; --seq-200:#9ec5f4; --seq-300:#6da7ec; --seq-400:#3987e5; --seq-500:#256abf; --seq-600:#184f95; --seq-700:#0d366b;
+    --sin-dato:#EEF0F4;
+  }
+  body { background: var(--ar-fondo); }
+  .t-main { max-width: 1440px; margin: 0 auto; padding: 16px 20px 60px; }
+  .tabs { display: flex; gap: 4px; margin-left: 18px; flex-wrap: wrap; }
+  .tab { background: transparent; border: 0; color: rgba(255,255,255,.8); font: inherit; font-weight: 700; font-size: 15px; padding: 8px 14px; border-radius: 8px; cursor: pointer; }
+  .tab[aria-selected="true"] { background: rgba(255,255,255,.16); color: #fff; }
+  .tab .n { display: inline-block; min-width: 22px; padding: 0 6px; margin-left: 6px; border-radius: 999px; background: #fff; color: var(--ar-azul); font-size: 12px; line-height: 20px; text-align: center; }
+  .hdr-der { margin-left: auto; display: flex; align-items: center; gap: 12px; font-size: 13px; }
+  .hdr-der button { background: rgba(255,255,255,.14); color: #fff; border: 0; border-radius: 8px; padding: 7px 12px; font: inherit; font-weight: 600; cursor: pointer; }
+  .vista { display: none; } .vista.activa { display: block; }
+
+  /* Resumen de estados */
+  .estados { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .estado-box { background: #fff; border: 1px solid var(--ar-borde); border-radius: 12px; padding: 12px 14px; cursor: pointer; text-align: left; font: inherit; }
+  .estado-box[aria-pressed="true"] { border-color: var(--ar-azul); box-shadow: inset 0 0 0 1px var(--ar-azul); }
+  .estado-box b { display: block; font-size: 26px; line-height: 1.1; color: var(--ar-texto); font-variant-numeric: tabular-nums; }
+  .estado-box span { font-size: 13px; color: var(--ar-texto-2); }
+
+  /* Tablas */
+  .tabla-caja { background: #fff; border: 1px solid var(--ar-borde); border-radius: 12px; overflow: auto; }
+  table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.t th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--ar-texto-2); background: #F8F9FC; padding: 10px 12px; border-bottom: 1px solid var(--ar-borde); position: sticky; top: 0; white-space: nowrap; }
+  table.t td { padding: 10px 12px; border-bottom: 1px solid #EEF0F4; vertical-align: top; }
+  table.t tbody tr { cursor: pointer; }
+  table.t tbody tr:hover { background: #F5F7FC; }
+  table.t td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .reloj { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .reloj.ok { color: var(--ar-ok); } .reloj.ambar { color: var(--ar-ambar); } .reloj.rojo { color: var(--ar-rojo); }
+  .sub { display: block; font-size: 12.5px; color: var(--ar-texto-2); }
+  .prio-alta { color: var(--ar-rojo); font-weight: 700; }
+  .vacio { padding: 40px; text-align: center; color: var(--ar-texto-2); }
+
+  /* Filtros */
+  .filtros { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; background: #fff; border: 1px solid var(--ar-borde); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+  .filtros label { font-size: 12px; font-weight: 700; color: var(--ar-texto-2); display: block; margin-bottom: 4px; }
+  .filtros .ar-input, .filtros .ar-select { min-height: 40px; padding: 8px 10px; font-size: 14px; }
+  .filtros .ar-select { padding-right: 32px; background-position: calc(100% - 18px) 17px, calc(100% - 13px) 17px; }
+  .presets { display: flex; gap: 4px; flex-wrap: wrap; }
+  .preset { border: 1px solid var(--ar-borde); background: #fff; border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13.5px; cursor: pointer; }
+  .preset[aria-pressed="true"] { background: var(--ar-azul); color: #fff; border-color: var(--ar-azul); }
+
+  /* KPI y gráficas */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .kpi { background: #fff; border: 1px solid var(--ar-borde); border-radius: 12px; padding: 14px 16px; }
+  .kpi span { font-size: 12.5px; color: var(--ar-texto-2); display: block; }
+  .kpi b { font-size: 28px; line-height: 1.15; display: block; font-variant-numeric: tabular-nums; color: var(--ar-texto); }
+  .kpi small { font-size: 12px; color: var(--ar-texto-2); }
+  .graficas { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+  .g { background: #fff; border: 1px solid var(--ar-borde); border-radius: 12px; padding: 14px 16px; grid-column: span 6; min-width: 0; }
+  .g.g4 { grid-column: span 4; } .g.g8 { grid-column: span 8; } .g.g12 { grid-column: span 12; }
+  .g h3 { margin: 0 0 2px; font-size: 15px; color: var(--ar-azul-osc); }
+  .g p.desc { margin: 0 0 10px; font-size: 12.5px; color: var(--ar-texto-2); }
+  .g svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .g svg text { font-family: var(--ar-fuente); }
+  .eje { fill: var(--ar-texto-2); font-size: 11px; }
+  .etq { fill: var(--ar-texto); font-size: 12px; }
+  .valor { fill: var(--ar-texto); font-size: 11.5px; font-weight: 700; }
+  .grid-l { stroke: #EEF0F4; stroke-width: 1; }
+  .barra { fill: var(--ar-azul); }
+  .barra:hover, .depto:hover { opacity: .8; }
+  .depto { stroke: #fff; stroke-width: 1.2; }
+  .leyenda { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ar-texto-2); margin-top: 8px; flex-wrap: wrap; }
+  .leyenda i { display: inline-block; width: 22px; height: 10px; border-radius: 2px; }
+  .tip { position: fixed; z-index: 200; pointer-events: none; background: #1B2033; color: #fff; font-size: 12.5px; padding: 7px 10px; border-radius: 8px; box-shadow: var(--ar-sombra); max-width: 260px; }
+  .tip b { display: block; }
+  .ver-tabla { background: none; border: 0; color: var(--ar-azul); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 0; margin-top: 6px; }
+  .mini-tabla { font-size: 12.5px; width: 100%; border-collapse: collapse; margin-top: 6px; }
+  .mini-tabla td { padding: 3px 4px; border-bottom: 1px solid #EEF0F4; } .mini-tabla td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Panel de detalle */
+  .panel-fondo { position: fixed; inset: 0; background: rgba(15,20,36,.35); z-index: 60; display: none; }
+  .panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(620px, 100%); background: var(--ar-fondo); z-index: 61; transform: translateX(100%); transition: transform .2s; display: flex; flex-direction: column; box-shadow: -8px 0 30px rgba(0,0,0,.15); }
+  .panel.abierto { transform: none; } .panel.abierto + .panel-fondo, .panel-fondo.abierto { display: block; }
+  .panel-hdr { background: #fff; padding: 14px 18px; border-bottom: 1px solid var(--ar-borde); display: flex; gap: 10px; align-items: flex-start; }
+  .panel-hdr h2 { margin: 0; font-size: 20px; color: var(--ar-azul-osc); }
+  .panel-hdr .cerrar { margin-left: auto; background: none; border: 0; font-size: 26px; line-height: 1; cursor: pointer; color: var(--ar-texto-2); }
+  .panel-cuerpo { overflow: auto; padding: 14px 18px 40px; flex: 1; }
+  .acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+  .acciones .ar-btn { min-height: 40px; padding: 8px 14px; font-size: 14px; }
+  .bit { list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
+  .bit li { padding: 8px 0; border-top: 1px solid var(--ar-borde); } .bit li:first-child { border-top: 0; }
+  .bit small { color: var(--ar-texto-2); display: block; }
+  .sub-form { background: #fff; border: 1px solid var(--ar-azul); border-radius: 12px; padding: 14px; margin-top: 12px; }
+  .sub-form h3 { margin: 0 0 10px; font-size: 15px; }
+  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .solo-taller.oculto-rol { display: none !important; }
+  .req::after { content: " *"; color: var(--ar-rojo); }
+  .form-nuevo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-nuevo .ar-card { margin: 0; }
+  .visor { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 300; display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
+  .visor img { max-width: 96%; max-height: 96%; }
+
+  @media (max-width: 1000px) {
+    .g, .g.g4, .g.g8 { grid-column: span 12; }
+    .form-nuevo { grid-template-columns: 1fr; }
+    .tabs { margin-left: 0; }
+    .ar-header { flex-wrap: wrap; }
+  }
+  @media (max-width: 560px) { .dos { grid-template-columns: 1fr; } .t-main { padding: 12px; } }
+</style>
+</head>
+<body>
+<header class="ar-header">
+  <img src="assets/transda-logo-blanco.svg" alt="TRANSDA">
+  <h1>Tablero del Taller<small>Asistencias en Ruta</small></h1>
+  <nav class="tabs ar-oculto" id="tabs" role="tablist" aria-label="Secciones">
+    <button class="tab" role="tab" data-v="activas" aria-selected="true">Activas<span class="n" id="nActivas">0</span></button>
+    <button class="tab" role="tab" data-v="tablero" aria-selected="false">Indicadores</button>
+    <button class="tab" role="tab" data-v="historial" aria-selected="false">Historial</button>
+    <button class="tab solo-taller" role="tab" data-v="nuevo" aria-selected="false">+ Registrar</button>
+  </nav>
+  <div class="hdr-der ar-oculto" id="hdrDer">
+    <span id="estadoSync" aria-live="polite"></span>
+    <button type="button" id="bActualizar">Actualizar</button>
+    <span id="hdrUsuario"></span>
+    <button type="button" id="bSalir">Salir</button>
+  </div>
+</header>
+
+<main class="t-main">
+  <!-- ===================== LOGIN ===================== -->
+  <section id="vLogin" class="ar-oculto" style="max-width:440px;margin:30px auto">
+    <div class="ar-card">
+      <h2>Ingresar al tablero</h2>
+      <div class="ar-campo"><label class="req" for="lPin">PIN</label><input id="lPin" class="ar-input" type="password" autocomplete="off"></div>
+      <div class="ar-campo"><label class="req" for="lNombre">Tu nombre</label><input id="lNombre" class="ar-input" autocomplete="name" placeholder="Queda registrado en la bitácora"></div>
+      <p style="font-size:13px;color:var(--ar-texto-2);margin:0 0 12px">PIN de <b>Taller</b>: registra, asigna y cierra. PIN de <b>Consulta</b>: solo lectura (Monitoreo, Programación, Transportes, Gerencia).</p>
+      <div id="lError" class="ar-aviso rojo ar-oculto"></div>
+      <button class="ar-btn ar-btn-bloque" id="bEntrar" type="button">Entrar</button>
+    </div>
+  </section>
+
+  <!-- ===================== ACTIVAS ===================== -->
+  <section id="v-activas" class="vista">
+    <div class="estados" id="estados"></div>
+    <div class="tabla-caja">
+      <table class="t">
+        <thead><tr><th>Tiempo abierta</th><th>Asistencia</th><th>Unidad</th><th>Falla</th><th>Ubicación</th><th>Estado</th><th>Mecánico</th><th>Piloto</th></tr></thead>
+        <tbody id="tbActivas"></tbody>
+      </table>
+    </div>
+    <p style="font-size:12.5px;color:var(--ar-texto-2)">El tiempo corre desde el reporte. Verde &lt; <span class="hA">2</span> h · ámbar &lt; <span class="hR">4</span> h · rojo después. Se actualiza solo cada minuto.</p>
+  </section>
+
+  <!-- ===================== INDICADORES ===================== -->
+  <section id="v-tablero" class="vista">
+    <div class="filtros" id="filtrosTablero">
+      <div><label>Periodo</label>
+        <div class="presets" id="presets">
+          <button class="preset" data-p="7d">7 días</button><button class="preset" data-p="mes" aria-pressed="true">Este mes</button>
+          <button class="preset" data-p="mesAnt">Mes anterior</button><button class="preset" data-p="30d">30 días</button>
+          <button class="preset" data-p="anio">Este año</button>
+        </div>
+      </div>
+      <div><label for="fDesde">Desde</label><input type="date" id="fDesde" class="ar-input"></div>
+      <div><label for="fHasta">Hasta</label><input type="date" id="fHasta" class="ar-input"></div>
+      <div><label for="fArea">Área</label><select id="fArea" class="ar-select"><option value="">Todas</option></select></div>
+      <div><label for="fTipoMec">Mecánico</label><select id="fTipoMec" class="ar-select"><option value="">Interno y externo</option><option>Interno</option><option>Externo</option></select></div>
+      <div><label for="fTipoUni">Tipo de unidad</label><select id="fTipoUni" class="ar-select"><option value="">Todas</option><option value="CABEZAL">Cabezal</option><option value="CAMION CISTERNA">Camión cisterna</option></select></div>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="graficas">
+      <div class="g g8"><h3>Asistencias por día</h3><p class="desc">Fecha del reporte</p><div id="gDia"></div></div>
+      <div class="g g4"><h3>Uso de grúa</h3><p class="desc">Resultado de las asistencias atendidas</p><div id="gGrua"></div></div>
+      <div class="g"><h3>Unidades con más asistencias</h3><p class="desc">Top 10 del periodo</p><div id="gUnidades"></div></div>
+      <div class="g"><h3>Mapa de calor por departamento</h3><p class="desc">Cantidad de asistencias según ubicación GPS del reporte</p><div id="gMapa"></div></div>
+      <div class="g g4"><h3>Por área de trabajo</h3><p class="desc">Mecánica, electromecánica, llantas, soldadura</p><div id="gArea"></div></div>
+      <div class="g g4"><h3>Tiempo promedio por etapa</h3><p class="desc">Minutos, solo asistencias con la etapa registrada</p><div id="gTiempos"></div></div>
+      <div class="g g4"><h3>Mecánico interno vs externo</h3><p class="desc">Asistencias con mecánico registrado</p><div id="gMec"></div></div>
+      <div class="g g12"><h3>Horas del día con más reportes</h3><p class="desc">Hora del reporte (0 a 23 h) — ayuda a planificar turnos</p><div id="gHora"></div></div>
+    </div>
+  </section>
+
+  <!-- ===================== HISTORIAL ===================== -->
+  <section id="v-historial" class="vista">
+    <div class="filtros">
+      <div style="flex:1;min-width:220px"><label for="hBuscar">Buscar</label><input id="hBuscar" class="ar-input" placeholder="Unidad, correlativo, piloto, mecánico, falla…"></div>
+      <div><label for="hEstado">Estado</label><select id="hEstado" class="ar-select"><option value="">Todos</option></select></div>
+      <div><label>Periodo</label><div style="font-size:13.5px;padding:10px 0" id="hPeriodo"></div></div>
+      <div><button class="ar-btn ar-btn-sec" id="bExportar" type="button" style="min-height:40px">Exportar a Excel</button></div>
+    </div>
+    <div class="tabla-caja" style="max-height:70vh">
+      <table class="t">
+        <thead><tr><th>Asistencia</th><th>Fecha</th><th>Unidad</th><th>Área / falla</th><th>Depto.</th><th>Mecánico</th><th>Resultado</th><th>Estado</th><th class="num">Total</th></tr></thead>
+        <tbody id="tbHistorial"></tbody>
+      </table>
+    </div>
+    <p id="hConteo" style="font-size:12.5px;color:var(--ar-texto-2)"></p>
+  </section>
+
+  <!-- ===================== REGISTRAR ===================== -->
+  <section id="v-nuevo" class="vista">
+    <div class="ar-aviso info">Registra aquí las asistencias que el piloto no pudo reportar, las que atendió un mecánico externo o las que llegaron por llamada. También puedes <b>importar un PDF</b> generado por la app (de piloto o de mecánico) que no se haya sincronizado.
+      <label class="ar-btn ar-btn-sec" style="margin-top:10px;min-height:40px;cursor:pointer">Importar PDF recibido<input type="file" accept="application/pdf" id="nPdf" hidden multiple></label>
+    </div>
+    <form id="fNuevo" novalidate>
+      <div class="form-nuevo">
+        <div class="ar-card">
+          <h2>Reporte</h2>
+          <div class="dos">
+            <div class="ar-campo"><label class="req" for="nFecha">Fecha y hora del reporte</label><input id="nFecha" type="datetime-local" class="ar-input"></div>
+            <div class="ar-campo"><label for="nOrigen">¿Cómo llegó?</label><select id="nOrigen" class="ar-select"><option>Llamada del piloto</option><option>WhatsApp</option><option>Monitoreo / GPS</option><option>Mecánico externo</option><option>Otro</option></select></div>
+          </div>
+          <div class="dos">
+            <div class="ar-campo"><label class="req" for="nUnidad">Unidad</label><input id="nUnidad" class="ar-input" list="dlUnidades" autocomplete="off" placeholder="Ej. C140"><datalist id="dlUnidades"></datalist><div class="sub" id="nUnidadInfo"></div></div>
+            <div class="ar-campo"><label for="nCisterna">Cisterna</label><input id="nCisterna" class="ar-input" list="dlCisternas" autocomplete="off"><datalist id="dlCisternas"></datalist></div>
+          </div>
+          <div class="dos">
+            <div class="ar-campo"><label for="nPiloto">Piloto</label><input id="nPiloto" class="ar-input" list="dlPilotos" autocomplete="off"><datalist id="dlPilotos"></datalist></div>
+            <div class="ar-campo"><label for="nTel">Teléfono del piloto</label><input id="nTel" class="ar-input" type="tel"></div>
+          </div>
+          <div class="dos">
+            <div class="ar-campo"><label class="req" for="nArea">Área</label><select id="nArea" class="ar-select"><option value="">— Elige —</option></select></div>
+            <div class="ar-campo"><label for="nComp">Componente</label><select id="nComp" class="ar-select"><option>Cabezal / Camión</option><option>Cisterna</option></select></div>
+          </div>
+          <div class="ar-campo"><label class="req" for="nDesc">Descripción de la falla</label><textarea id="nDesc" class="ar-textarea"></textarea></div>
+          <div class="dos">
+            <div class="ar-campo"><label class="req" for="nMueve">¿Puede moverse?</label><select id="nMueve" class="ar-select"><option value="">—</option><option value="SI">Sí</option><option value="NO">No</option></select></div>
+            <div class="ar-campo"><label class="req" for="nCarga">¿Con carga?</label><select id="nCarga" class="ar-select"><option value="">—</option><option value="SI">Sí</option><option value="NO">No</option></select></div>
+          </div>
+        </div>
+        <div class="ar-card">
+          <h2>Ubicación y fotos</h2>
+          <div class="ar-campo"><label class="req" for="nDepto">Departamento</label><select id="nDepto" class="ar-select"><option value="">— Elige —</option></select></div>
+          <div class="ar-campo"><label for="nRef">Referencia</label><input id="nRef" class="ar-input" placeholder="Ej. Km 58 CA-9"></div>
+          <div class="ar-campo"><label for="nCoord">Coordenadas o enlace de Google Maps (opcional)</label><input id="nCoord" class="ar-input" placeholder="14.3044, -90.7852  ·  o pega el enlace de ubicación"><div class="sub" id="nCoordInfo"></div></div>
+          <div class="ar-campo"><span class="ar-label">Fotos (opcional, hasta 4)</span>
+            <div class="ar-fotos" id="nFotos"><label class="ar-foto-add" id="nFotoAdd">＋ Foto<input type="file" accept="image/*" id="nFoto" multiple></label></div>
+          </div>
+          <div class="ar-campo"><label for="nObs">Observaciones</label><input id="nObs" class="ar-input"></div>
+          <div id="nError" class="ar-aviso rojo ar-oculto"></div>
+          <button class="ar-btn ar-btn-bloque ar-btn-grande" type="submit" id="bRegistrar">Registrar asistencia</button>
+          <p style="font-size:12.5px;color:var(--ar-texto-2);margin:8px 0 0">Después podrás asignar mecánico, registrar horas y cerrarla desde <b>Activas</b>.</p>
+        </div>
+      </div>
+    </form>
+  </section>
+</main>
+
+<!-- ===================== PANEL DE DETALLE ===================== -->
+<aside class="panel" id="panel" aria-hidden="true" aria-labelledby="pTitulo">
+  <div class="panel-hdr">
+    <div><div class="sub" id="pCorr"></div><h2 id="pTitulo"></h2><div id="pEstado" style="margin-top:4px"></div></div>
+    <button class="cerrar" id="pCerrar" type="button" aria-label="Cerrar">×</button>
+  </div>
+  <div class="panel-cuerpo" id="pCuerpo"></div>
+</aside>
+<div class="panel-fondo" id="panelFondo"></div>
+<div class="tip ar-oculto" id="tip" role="tooltip"></div>
+
+<script src="config.js"></script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="core.js"></script>
+<script src="taller.js"></script>
+</body>
+</html>

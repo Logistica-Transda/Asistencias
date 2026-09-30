@@ -7,7 +7,7 @@
   'use strict';
   const CFG = global.AR_CONFIG || {};
   const AR = {};
-  AR.VERSION = '1.2.0';
+  AR.VERSION = '1.3.0';
 
   /* ------------------------------------------------------------
      Estados, áreas y constantes de negocio
