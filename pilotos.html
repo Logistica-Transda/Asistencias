@@ -53,13 +53,12 @@
       <p style="margin:0 0 14px;color:var(--ar-texto-2);font-size:14px">Solo la primera vez. El celular recordará tus datos.</p>
       <div class="ar-campo">
         <label class="req" for="lPin">PIN de pilotos</label>
-        <input id="lPin" class="ar-input" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN que te dio el taller">
+        <input id="lPin" class="ar-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="8 dígitos que te dio el taller">
       </div>
       <div class="ar-campo">
         <label class="req" for="lNombre">Tu nombre</label>
-        <input id="lNombre" class="ar-input" list="dlPilotos" autocomplete="off" placeholder="Escribe y elige de la lista">
-        <datalist id="dlPilotos"></datalist>
-        <div class="ar-ayuda" id="lNombreAyuda">Al escribir 3 letras aparece la lista de pilotos.</div>
+        <input id="lNombre" class="ar-input" autocomplete="name" autocapitalize="words" placeholder="Nombre y apellido">
+        <div class="ar-ayuda" id="lNombreAyuda">Escribe tu nombre completo, como aparece en tu carné.</div>
       </div>
       <div class="ar-campo">
         <label for="lTel">Tu teléfono</label>
@@ -233,11 +232,10 @@
   function llenarCatalogos(d) {
     if (!d) return;
     const areaSel = valorRadio('area'), deptoSel = $('fDepto').value; // se conservan al refrescar
-    $('dlPilotos').innerHTML = (d.pilotos || []).map((p) => '<option value="' + U.esc(p.nombre) + '">').join('');
     const mot = (d.unidades || []).filter((u) => u.tipo !== 'CISTERNA');
     const cis = (d.unidades || []).filter((u) => u.tipo === 'CISTERNA');
-    $('dlUnidades').innerHTML = mot.map((u) => '<option value="' + U.esc(u.codigo) + '">' + U.esc((u.tipo === 'CABEZAL' ? 'Cabezal' : 'Camión cisterna') + ' · ' + (u.placa || '') + ' · ' + (u.marca || '')) + '</option>').join('');
-    $('dlCisternas').innerHTML = cis.map((u) => '<option value="' + U.esc(u.codigo) + '">' + U.esc('Cisterna · ' + (u.placa || '') + (u.capacidad ? ' · ' + u.capacidad + ' gal' : '')) + '</option>').join('');
+    $('dlUnidades').innerHTML = mot.map((u) => '<option value="' + U.esc(u.codigo) + '">' + (u.tipo === 'CABEZAL' ? 'Cabezal' : 'Camión cisterna') + '</option>').join('');
+    $('dlCisternas').innerHTML = cis.map((u) => '<option value="' + U.esc(u.codigo) + '">Cisterna</option>').join('');
     const dep = d.departamentos && d.departamentos.length ? d.departamentos : [];
     $('fDepto').innerHTML = '<option value="">— Elige si no se detectó —</option>' + dep.map((x) => '<option>' + U.esc(x) + '</option>').join('');
     const areas = (d.areas && d.areas.length ? d.areas.map((a) => a.area) : AR.AREAS);
@@ -249,34 +247,32 @@
   $('fArea').innerHTML = AR.AREAS.map((a) => '<label class="ar-opcion"><input type="radio" name="area" value="' + a + '"><span>' + a + '</span></label>').join('');
 
   /* -------------------- identificación -------------------- */
-  $('lNombre').addEventListener('change', () => {
-    const d = AR.catalogos.datos; if (!d) return;
-    const p = (d.pilotos || []).find((x) => x.nombre === $('lNombre').value);
-    $('lNombreAyuda').textContent = p ? 'Unidad asignada: ' + [p.unidad, p.cisterna].filter(Boolean).join(' / ') + ' · Región ' + (p.region || '—') : 'Si no apareces en la lista, escribe tu nombre completo.';
-    if (p && p.tel && !$('lTel').value) $('lTel').value = p.tel;
-  });
-
+  $('lPin').addEventListener('input', () => { $('lPin').value = $('lPin').value.replace(/\D/g, '').slice(0, 8); });
   $('bEntrar').addEventListener('click', async () => {
-    const pin = $('lPin').value.trim(), nombre = $('lNombre').value.trim();
+    const pin = $('lPin').value.trim(), nombre = $('lNombre').value.trim().replace(/\s+/g, ' ');
     const err = (m) => { $('lError').textContent = m; $('lError').classList.remove('ar-oculto'); };
     $('lError').classList.add('ar-oculto');
-    if (!pin) return err('Escribe el PIN.');
-    if (nombre.length < 5) return err('Escribe tu nombre completo.');
-    AR.sesion.guardar(pin, nombre);
+    if (pin.length !== 8) return err('El PIN tiene 8 dígitos.');
+    if (nombre.length < 5 || nombre.indexOf(' ') < 0) return err('Escribe tu nombre y apellido.');
     $('bEntrar').disabled = true; $('bEntrar').textContent = 'Verificando…';
     try {
-      const d = await AR.catalogos.cargar(true);
-      if (d.rol !== 'piloto' && d.rol !== 'taller') throw new Error('Este PIN no es de pilotos.');
-      llenarCatalogos(d);
+      const r = await AR.api.login(pin, nombre);
+      if (r.rol !== 'piloto' && r.rol !== 'taller') { AR.sesion.salir(); throw new Error('Este PIN no es de pilotos.'); }
+      llenarCatalogos(await AR.catalogos.cargar(true));
     } catch (e) {
-      if (!e.red) { AR.sesion.salir(); $('bEntrar').disabled = false; $('bEntrar').textContent = 'Entrar'; return err(e.message); }
-      AR.ui.toast('Sin señal: se verificará el PIN al enviar.', '', 4000);
+      $('bEntrar').disabled = false; $('bEntrar').textContent = 'Entrar';
+      return err(e.red ? 'Sin señal. Necesitas internet para ingresar la primera vez.' : e.message);
     }
-    const d = AR.catalogos.datos;
-    const p = d && (d.pilotos || []).find((x) => x.nombre === nombre);
-    AR.store.set('piloto.perfil', { nombre, id: p ? p.id : '', tel: $('lTel').value.trim(), unidad: p ? p.unidad : '', cisterna: p ? p.cisterna : '' });
+    const ant = perfil() || {};
+    AR.store.set('piloto.perfil', { nombre, tel: $('lTel').value.trim(), unidad: ant.nombre === nombre ? ant.unidad : '', cisterna: ant.nombre === nombre ? ant.cisterna : '' });
+    $('lPin').value = '';
     $('bEntrar').disabled = false; $('bEntrar').textContent = 'Entrar';
     iniciarFormulario();
+  });
+  AR.on('sesion', (msg) => {
+    pintarUsuario(); mostrar('vLogin');
+    const p = perfil(); if (p) { $('lNombre').value = p.nombre; $('lTel').value = p.tel || ''; }
+    $('lError').textContent = msg + ' Tu reporte no se perdió.'; $('lError').classList.remove('ar-oculto');
   });
 
   $('bSalir').addEventListener('click', () => {
@@ -293,7 +289,7 @@
     const el = $('fUnidadInfo');
     if (!$('fUnidad').value.trim()) { el.textContent = ''; return null; }
     if (!u) { el.innerHTML = '<span style="color:var(--ar-ambar)">No está en el catálogo. Revisa el código (se enviará igual).</span>'; return null; }
-    el.textContent = (u.tipo === 'CABEZAL' ? 'Cabezal' : u.tipo === 'CAMION CISTERNA' ? 'Camión cisterna' : 'Cisterna') + ' · ' + (u.placa || '') + ' · ' + (u.marca || '') + (u.modelo ? ' ' + u.modelo : '');
+    el.textContent = (u.tipo === 'CABEZAL' ? 'Cabezal' : u.tipo === 'CAMION CISTERNA' ? 'Camión cisterna' : 'Cisterna') + ' · registrado en el sistema ✓';
     return u;
   }
   $('fUnidad').addEventListener('input', () => { $('fUnidad').value = $('fUnidad').value.toUpperCase(); });
@@ -409,14 +405,15 @@
       uid: U.uid(), creadoEn: new Date().toISOString(),
       unidad: U.normCodigo($('fUnidad').value), tipoUnidad: u ? u.tipo : '', cisterna: $('fCisterna').value ? U.normCodigo($('fCisterna').value) : '',
       componente: valorRadio('componente'),
-      pilotoId: p.id || '', pilotoNombre: p.nombre || AR.sesion.usuario(), pilotoTel: $('fTel').value.trim(),
+      pilotoId: '', pilotoNombre: p.nombre || AR.sesion.usuario(), pilotoTel: $('fTel').value.trim(),
       area: valorRadio('area'), descripcion: $('fDesc').value.trim(),
       puedeMoverse: mueve, conCarga: valorRadio('carga'), prioridad: mueve === 'NO' ? 'Alta' : 'Media',
       lat: gps ? gps.lat : '', lng: gps ? gps.lng : '', precision: gps ? gps.precision : '',
       departamento: $('fDepto').value, referencia: $('fRef').value.trim()
     };
     // guarda el teléfono para la próxima vez
-    if (caso.pilotoTel) AR.store.set('piloto.perfil', Object.assign({}, p, { tel: caso.pilotoTel }));
+    // recuerda teléfono, unidad y cisterna para el próximo reporte
+    AR.store.set('piloto.perfil', Object.assign({}, p, { tel: caso.pilotoTel || p.tel || '', unidad: caso.unidad, cisterna: caso.cisterna }));
 
     const b = $('bEnviar'); b.disabled = true; b.textContent = 'Enviando…';
     try {
@@ -430,7 +427,7 @@
       mostrarResultado(r.enviado, casoPdf);
     } catch (e) {
       AR.ui.toast(e.message, 'rojo', 6000);
-      if (/PIN/.test(e.message)) { AR.sesion.salir(); mostrar('vLogin'); }
+      // si la sesión venció, el evento 'sesion' ya muestra el ingreso
     } finally { b.disabled = false; b.textContent = 'Enviar reporte'; }
   });
 
@@ -481,7 +478,7 @@
   async function refrescarMis() {
     const l = misReportes(); pintarMis();
     const ids = l.filter((r) => r.estado !== 'CERRADA' && r.estado !== 'ANULADA').map((r) => r.id);
-    if (!ids.length || !AR.sesion.pin()) return;
+    if (!ids.length || !AR.sesion.token()) return;
     try {
       const res = await AR.api.llamar('misReportes', { ids });
       const mapa = {}; res.reportes.forEach((x) => { mapa[x.id] = x; });
@@ -524,19 +521,13 @@
   }
 
   llenarCatalogos(AR.catalogos.datos);
-  if (perfil() && AR.sesion.pin()) iniciarFormulario();
+  if (perfil() && AR.sesion.token()) iniciarFormulario();
   else {
     const p = perfil();
     if (p) { $('lNombre').value = p.nombre; $('lTel').value = p.tel || ''; }
     mostrar('vLogin');
     // precarga la lista de pilotos si el PIN ya existe en otra sesión
   }
-  // la lista de pilotos requiere PIN: se carga al escribirlo
-  $('lPin').addEventListener('change', async () => {
-    const pin = $('lPin').value.trim(); if (!pin || AR.catalogos.datos) return;
-    AR.sesion.guardar(pin, $('lNombre').value);
-    try { llenarCatalogos(await AR.catalogos.cargar(true)); } catch (e) { /* se valida al entrar */ }
-  });
 })();
 </script>
 </body>

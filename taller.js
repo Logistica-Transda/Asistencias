@@ -51,27 +51,34 @@
   $('bEntrar').addEventListener('click', async () => {
     const err = (m) => { $('lError').textContent = m; $('lError').classList.remove('ar-oculto'); };
     $('lError').classList.add('ar-oculto');
-    const pin = $('lPin').value.trim(), nombre = $('lNombre').value.trim();
-    if (!pin) return err('Escribe el PIN.'); if (nombre.length < 3) return err('Escribe tu nombre.');
-    AR.sesion.guardar(pin, nombre);
+    const pin = $('lPin').value.replace(/\D/g, ''), nombre = $('lNombre').value.trim();
+    if (pin.length !== 8) return err('El PIN tiene 8 dígitos.'); if (nombre.length < 3) return err('Escribe tu nombre.');
     $('bEntrar').disabled = true;
     try {
-      const d = await AR.catalogos.cargar(true);
-      if (d.rol !== 'taller' && d.rol !== 'consulta') throw new Error('Este PIN no tiene acceso al tablero.');
+      const r = await AR.api.login(pin, nombre);
+      if (r.rol !== 'taller' && r.rol !== 'consulta') { AR.sesion.salir(); throw new Error('Este PIN no tiene acceso al tablero.'); }
+      $('lPin').value = '';
+      await AR.catalogos.cargar(true);
       iniciar();
-    } catch (e) { AR.sesion.salir(); err(e.message); }
+    } catch (e) { err(e.red ? 'Sin conexión a internet.' : e.message); }
     finally { $('bEntrar').disabled = false; }
   });
   $('lPin').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('lNombre').focus(); });
   $('lNombre').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('bEntrar').click(); });
-  $('bSalir').addEventListener('click', () => { AR.sesion.salir(); location.reload(); });
+  $('bSalir').addEventListener('click', () => { AR.sesion.salir(); setTimeout(() => location.reload(), 300); });
+  AR.on('sesion', () => { location.reload(); }); // sesión vencida o PIN cambiado: vuelve al ingreso
 
+  /* El rol viene de la sesión propia del tablero (cada app guarda su sesión por separado). */
+  function aplicarRol(nuevo) {
+    rol = nuevo === 'taller' ? 'taller' : 'consulta';
+    $('hdrUsuario').innerHTML = U.esc(AR.sesion.usuario()) + (esTaller() ? ' · <b>Taller</b>' : ' · <b>Consulta (solo lectura)</b>');
+    document.querySelectorAll('.solo-taller').forEach((el) => el.classList.toggle('oculto-rol', !esTaller()));
+    if (casoAbierto) pintarPanel(casoAbierto, detalle && detalle.bitacora);
+  }
   function iniciar() {
-    rol = (AR.catalogos.datos && AR.catalogos.datos.rol) || 'consulta';
     $('vLogin').classList.add('ar-oculto');
     $('tabs').classList.remove('ar-oculto'); $('hdrDer').classList.remove('ar-oculto');
-    $('hdrUsuario').textContent = AR.sesion.usuario() + (esTaller() ? '' : ' · solo lectura');
-    document.querySelectorAll('.solo-taller').forEach((el) => el.classList.toggle('oculto-rol', !esTaller()));
+    aplicarRol(AR.sesion.rol());
     document.querySelectorAll('.hA').forEach((e) => { e.textContent = cfg().horasAmbar; });
     document.querySelectorAll('.hR').forEach((e) => { e.textContent = cfg().horasRoja; });
     llenarCatalogos();
@@ -109,7 +116,7 @@
     } catch (e) {
       $('estadoSync').textContent = e.red ? 'Sin conexión' : 'Error';
       if (!silencioso) AR.ui.toast(e.message, 'rojo', 6000);
-      if (/PIN/.test(e.message)) { AR.sesion.salir(); location.reload(); }
+      // sesión vencida: el evento 'sesion' recarga la página
     }
   }
   $('bActualizar').addEventListener('click', () => cargar());
@@ -392,7 +399,12 @@
       ['Diagnóstico', 'diagnostico'], ['Trabajo realizado', 'trabajoRealizado'], ['Repuestos', 'repuestos'], ['Resultado', 'resultado'],
       ['Grúa proveedor', 'gruaProveedor'], ['Grúa destino', 'gruaDestino'], ['Grúa motivo', 'gruaMotivo'],
       ['Min. asignación', 'minAsignacion'], ['Min. llegada', 'minLlegada'], ['Min. reparación', 'minReparacion'], ['Min. total', 'minTotal'], ['Observaciones', 'observaciones']];
-    const celda = (v) => { v = v === undefined || v === null ? '' : String(v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    // Protección contra fórmulas: un texto que empiece con = + - @ (o tabulador) se antepone con ' para que Excel no lo ejecute
+    const celda = (v) => {
+      v = v === undefined || v === null ? '' : String(v);
+      if (/^[=+\-@\t\r]/.test(v) && !/^-?\d+(\.\d+)?$/.test(v)) v = "'" + v;
+      return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    };
     const csv = '﻿' + cols.map((c) => c[0]).join(',') + '\r\n' + l.map((a) => cols.map((c) => celda(typeof c[1] === 'function' ? c[1](a) : a[c[1]])).join(',')).join('\r\n');
     AR.descargar(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'Asistencias_TRANSDA_' + rango.desde + '_a_' + rango.hasta + '.csv');
   });
@@ -426,7 +438,7 @@
     const contacto = (nombre, tel) => tel ? U.esc(nombre || '') + ' · <a href="tel:' + U.esc(tel) + '">' + U.esc(tel) + '</a> · <a href="https://wa.me/' + U.telWa(tel) + '" target="_blank" rel="noopener">WhatsApp</a>' : U.esc(nombre || '—');
     let h = '';
     if (esTaller()) h += '<div class="ar-card"><div class="acciones" id="pAcciones">' + botonesAccion(a) + '</div><div id="pForm"></div></div>';
-    else h += '<div class="ar-card"><div class="acciones"><button class="ar-btn ar-btn-sec" data-acc="pdf" type="button">Descargar expediente PDF</button></div></div>';
+    else h += '<div class="ar-card"><div class="ar-aviso info" style="margin-bottom:10px">Estás en modo <b>Consulta (solo lectura)</b>. Para asignar mecánico o cerrar asistencias, toca <b>Salir</b> y entra con el <b>PIN de Taller</b>.</div><div class="acciones"><button class="ar-btn ar-btn-sec" data-acc="pdf" type="button">Descargar expediente PDF</button></div></div>';
     h += '<div class="ar-card"><h2>Reporte</h2>' + kv([
       ['Fecha', U.fechaHora(a.creadoEn)], ['Reportó', U.esc(a.creadoPor)], ['Piloto', contacto(a.pilotoNombre, a.pilotoTel)],
       ['Unidad', U.esc(a.unidad + ' · ' + (a.tipoUnidad || '')) + (a.componente ? ' · falla en ' + U.esc(a.componente) : '')],
@@ -731,9 +743,9 @@
   /* =========================================================
      Arranque
      ========================================================= */
-  if (AR.sesion.pin() && AR.catalogos.datos && ['taller', 'consulta'].includes(AR.catalogos.datos.rol)) {
+  if (AR.sesion.token() && ['taller', 'consulta'].includes(AR.sesion.rol())) {
     iniciar();
-    AR.catalogos.cargar(true).then(() => { llenarCatalogos(); }, (e) => { if (!e.red) { AR.sesion.salir(); location.reload(); } });
+    AR.catalogos.cargar(true).then(() => llenarCatalogos(), () => { /* sin señal o sesión vencida (se maneja aparte) */ });
   } else {
     $('vLogin').classList.remove('ar-oculto');
     $('lNombre').value = AR.sesion.usuario();

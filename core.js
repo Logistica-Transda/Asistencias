@@ -7,7 +7,7 @@
   'use strict';
   const CFG = global.AR_CONFIG || {};
   const AR = {};
-  AR.VERSION = '1.3.0';
+  AR.VERSION = '1.4.0';
 
   /* ------------------------------------------------------------
      Estados, áreas y constantes de negocio
@@ -122,13 +122,35 @@
   /* ------------------------------------------------------------
      Sesión (PIN y nombre del usuario, por aplicación)
      ------------------------------------------------------------ */
+  /* El PIN nunca se guarda en el celular: solo un token de sesión que vence a los 30 días
+     (o antes, si el taller cambia el PIN de ese rol). */
   AR.sesion = {
     app: 'general',
-    iniciar: function (app) { this.app = app; },
-    pin: function () { return S.get('pin.' + this.app, ''); },
+    iniciar: function (app) {
+      this.app = app;
+      S.del('pin.' + app); // limpia versiones anteriores que guardaban el PIN
+      AR.catalogos.datos = S.get('catalogos.' + app, null);
+    },
+    token: function () {
+      const t = S.get('token.' + this.app, ''), exp = S.get('expira.' + this.app, '');
+      if (t && exp && new Date(exp) < new Date()) { this.salir(true); return ''; }
+      return t;
+    },
+    activa: function () { return !!this.token(); },
     usuario: function () { return S.get('usuario.' + this.app, ''); },
-    guardar: function (pin, usuario) { S.set('pin.' + this.app, String(pin || '').trim()); S.set('usuario.' + this.app, String(usuario || '').trim()); },
-    salir: function () { S.del('pin.' + this.app); }
+    rol: function () { return this.token() ? S.get('rol.' + this.app, '') : ''; },
+    expira: function () { return S.get('expira.' + this.app, ''); },
+    guardar: function (r) {
+      S.set('token.' + this.app, r.token); S.set('rol.' + this.app, r.rol);
+      S.set('usuario.' + this.app, r.usuario || ''); S.set('expira.' + this.app, r.expira || '');
+    },
+    /** soloLocal: no avisa al servidor (p. ej. porque la sesión ya venció allá). */
+    salir: function (soloLocal) {
+      const t = S.get('token.' + this.app, '');
+      if (t && !soloLocal) AR.api.llamar('salir', {}, { token: t }).catch(function () { /* sin señal: vence sola */ });
+      ['token.', 'rol.', 'expira.', 'catalogos.'].forEach((k) => S.del(k + this.app));
+      AR.catalogos.datos = null;
+    }
   };
 
   /* ------------------------------------------------------------
@@ -141,7 +163,7 @@
   API.llamar = function (accion, datos, opciones) {
     opciones = opciones || {};
     if (!API.configurada()) return Promise.reject(Object.assign(new Error('La app aún no está conectada a Google Sheets (falta API_URL en config.js).'), { red: false }));
-    const cuerpo = Object.assign({ accion: accion, pin: opciones.pin || AR.sesion.pin(), usuario: opciones.usuario || AR.sesion.usuario() }, datos || {});
+    const cuerpo = Object.assign({ accion: accion }, opciones.anonimo ? {} : { token: opciones.token || AR.sesion.token() }, datos || {});
     const ctrl = global.AbortController ? new AbortController() : null;
     const t = setTimeout(function () { if (ctrl) ctrl.abort(); }, CFG.TIMEOUT_MS || 45000);
     // text/plain evita la verificación CORS previa que Apps Script no soporta
@@ -154,9 +176,23 @@
       })
       .then(function (res) {
         clearTimeout(t);
-        if (!res || !res.ok) throw Object.assign(new Error((res && res.error) || 'Error desconocido del servidor.'), { red: false });
+        if (!res || !res.ok) {
+          const err = Object.assign(new Error((res && res.error) || 'Error desconocido del servidor.'), { red: false, codigo: (res && res.codigo) || '' });
+          if (err.codigo === 'SESION' && !opciones.token) { AR.sesion.salir(true); AR.emit('sesion', err.message); }
+          throw err;
+        }
         return res;
       }, function (e) { clearTimeout(t); throw e; });
+  };
+
+  /** Ingreso con PIN. soloVerificar: valida el PIN sin abrir sesión (devuelve rol y, para mecánicos, la lista de nombres). */
+  API.login = function (pin, usuario, soloVerificar) {
+    pin = String(pin || '').replace(/\D/g, '');
+    if (pin.length !== 8) return Promise.reject(Object.assign(new Error('El PIN debe tener 8 dígitos.'), { red: false, codigo: 'FORMATO' }));
+    return API.llamar('login', { pin: pin, usuario: String(usuario || '').trim(), soloVerificar: !!soloVerificar }, { anonimo: true }).then(function (r) {
+      if (!soloVerificar) { AR.sesion.guardar(r); AR.catalogos.datos = null; }
+      return r;
+    });
   };
 
   /**
@@ -168,7 +204,7 @@
       return { enviado: true, res: res };
     }, function (e) {
       if (!e.red) throw e;
-      const item = { accion: accion, datos: datos, pin: AR.sesion.pin(), usuario: AR.sesion.usuario(), etiqueta: etiqueta || accion, creado: new Date().toISOString(), intentos: 0 };
+      const item = { accion: accion, datos: datos, token: AR.sesion.token(), app: AR.sesion.app, etiqueta: etiqueta || accion, creado: new Date().toISOString(), intentos: 0 };
       return IDB.agregar(item).then(function () {
         AR.emit('cola', { pendientes: null });
         API.contarCola();
@@ -184,19 +220,27 @@
     procesando = true;
     let enviados = 0;
     return IDB.todos().then(function (items) {
-      items.sort(function (a, b) { return a.k - b.k; });
+      // solo los envíos de esta app (pilotos y mecánicos pueden compartir celular)
+      items = items.filter(function (it) { return !it.app || it.app === AR.sesion.app; }).sort(function (a, b) { return a.k - b.k; });
       let p = Promise.resolve();
       let detener = false;
       items.forEach(function (it) {
         p = p.then(function () {
           if (detener) return;
-          return API.llamar(it.accion, it.datos, { pin: it.pin, usuario: it.usuario }).then(function (res) {
+          const enviar = function (token) { return API.llamar(it.accion, it.datos, { token: token }); };
+          return enviar(it.token || AR.sesion.token()).catch(function (e) {
+            // la sesión con que se guardó venció: se reintenta con la sesión actual
+            const actual = AR.sesion.token();
+            if (e.codigo === 'SESION' && actual && actual !== it.token) return enviar(actual);
+            throw e;
+          }).then(function (res) {
             enviados++;
             AR.emit('enviado', { item: it, res: res });
             return IDB.borrar(it.k);
           }, function (e) {
             if (e.red) { detener = true; return; } // sigue sin señal: se reintenta después
-            // error de datos (p. ej. PIN cambiado): se descarta para no bloquear la cola y se avisa
+            if (e.codigo === 'SESION') { detener = true; AR.emit('sesion', 'Ingresa de nuevo con tu PIN para enviar lo pendiente.'); return; } // se conserva
+            // error de datos (p. ej. límite diario): se descarta para no bloquear la cola y se avisa
             AR.emit('errorCola', { item: it, error: e.message });
             return IDB.borrar(it.k);
           });
@@ -207,7 +251,10 @@
             function (e) { procesando = false; console.warn(e); return enviados; });
   };
   API.contarCola = function () {
-    return IDB.todos().then(function (l) { AR.emit('cola', { pendientes: l.length, items: l }); return l.length; }, function () { return 0; });
+    return IDB.todos().then(function (l) {
+      l = l.filter(function (it) { return !it.app || it.app === AR.sesion.app; });
+      AR.emit('cola', { pendientes: l.length, items: l }); return l.length;
+    }, function () { return 0; });
   };
   if (global.addEventListener) {
     global.addEventListener('online', function () { API.procesarCola(); });
@@ -218,7 +265,7 @@
      Catálogos (se guardan en el celular para usarse sin señal)
      ------------------------------------------------------------ */
   AR.catalogos = {
-    datos: S.get('catalogos', null),
+    datos: null, // se carga en AR.sesion.iniciar (cada app guarda su propio catálogo)
     cargar: function (forzar) {
       const self = this;
       const edad = self.datos ? Date.now() - (self.datos._t || 0) : Infinity;
@@ -229,7 +276,7 @@
       });
       function guardar(res) {
         const d = { unidades: res.unidades, pilotos: res.pilotos, mecanicos: res.mecanicos, areas: res.areas, departamentos: res.departamentos, config: res.config, rol: res.rol, _t: Date.now() };
-        self.datos = d; S.set('catalogos', d); AR.emit('catalogos', d); return d;
+        self.datos = d; S.set('catalogos.' + AR.sesion.app, d); AR.emit('catalogos', d); return d;
       }
     },
     unidad: function (codigo) {

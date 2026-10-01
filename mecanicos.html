@@ -59,7 +59,8 @@
       <h2>Identifícate</h2>
       <div class="ar-campo">
         <label class="req" for="lPin">PIN de mecánicos</label>
-        <input id="lPin" class="ar-input" type="password" inputmode="numeric" autocomplete="off">
+        <input id="lPin" class="ar-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="8 dígitos">
+        <div class="ar-ayuda" id="lPinAyuda">Al completar el PIN aparece la lista de mecánicos.</div>
       </div>
       <div class="ar-campo">
         <label class="req" for="lNombre">Tu nombre</label>
@@ -192,7 +193,8 @@
   const overrides = () => AR.store.get('mec.overrides', {});   // cambios hechos aquí aún no confirmados
   function setOverride(id, campos) { const o = overrides(); o[id] = Object.assign(o[id] || {}, campos); AR.store.set('mec.overrides', o); }
   function conOverrides(c) { const o = overrides()[c.id]; return o ? Object.assign({}, c, o) : c; }
-  const esMio = (c) => { const p = perfil(); return p && c.mecanicoNombre && c.mecanicoNombre.toLowerCase() === p.nombre.toLowerCase(); };
+  const normN = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const esMio = (c) => { const p = perfil(); return !!(p && c.mecanicoNombre && normN(c.mecanicoNombre) === normN(AR.sesion.usuario() || p.nombre)); };
 
   function mostrar(v) { ['vLogin', 'vLista', 'vCaso'].forEach((id) => $(id).classList.toggle('ar-oculto', id !== v)); window.scrollTo(0, 0); }
   function pintarUsuario() {
@@ -208,33 +210,43 @@
   function llenarMecanicos(d) {
     $('dlMecanicos').innerHTML = ((d && d.mecanicos) || []).map((m) => '<option value="' + U.esc(m.nombre) + '">' + U.esc([m.tipo, m.taller, m.region].filter(Boolean).join(' · ')) + '</option>').join('');
   }
-  $('lPin').addEventListener('change', async () => {
-    AR.sesion.guardar($('lPin').value, $('lNombre').value);
-    try { llenarMecanicos(await AR.catalogos.cargar(true)); } catch (e) { /* se valida al entrar */ }
+  // Al completar los 8 dígitos se verifica el PIN (sin abrir sesión) y llega la lista de mecánicos
+  let listaLogin = [];
+  $('lPin').addEventListener('input', async () => {
+    $('lPin').value = $('lPin').value.replace(/\D/g, '').slice(0, 8);
+    if ($('lPin').value.length !== 8) return;
+    try {
+      const r = await AR.api.login($('lPin').value, '', true);
+      if (r.rol !== 'mecanico' && r.rol !== 'taller') { $('lPinAyuda').textContent = 'Este PIN no es de mecánicos.'; return; }
+      listaLogin = r.mecanicos || [];
+      llenarMecanicos({ mecanicos: listaLogin });
+      $('lPinAyuda').textContent = listaLogin.length ? 'PIN correcto ✓ Elige tu nombre de la lista.' : 'PIN correcto ✓';
+    } catch (e) { $('lPinAyuda').textContent = e.message; }
   });
   $('lNombre').addEventListener('change', () => {
-    const m = ((AR.catalogos.datos && AR.catalogos.datos.mecanicos) || []).find((x) => x.nombre === $('lNombre').value);
+    const m = listaLogin.find((x) => x.nombre === $('lNombre').value);
     if (!m) return;
     const r = document.querySelector('input[name=lTipo][value="' + (m.tipo === 'Externo' ? 'Externo' : 'Interno') + '"]'); r.checked = true; r.dispatchEvent(new Event('change'));
-    if (m.taller) $('lTaller').value = m.taller; if (m.tel) $('lTel').value = m.tel;
+    if (m.taller) $('lTaller').value = m.taller;
   });
   $('bEntrar').addEventListener('click', async () => {
     const err = (m) => { $('lError').textContent = m; $('lError').classList.remove('ar-oculto'); };
     $('lError').classList.add('ar-oculto');
     const pin = $('lPin').value.trim(), nombre = $('lNombre').value.trim();
-    if (!pin) return err('Escribe el PIN.');
+    if (pin.length !== 8) return err('El PIN tiene 8 dígitos.');
     if (nombre.length < 4) return err('Escribe tu nombre.');
+    if (listaLogin.length && !listaLogin.some((m) => normN(m.nombre) === normN(nombre))) return err('Elige tu nombre de la lista. Si no apareces, pide al taller que te agregue.');
     if (valor('lTipo') === 'Externo' && !$('lTaller').value.trim()) return err('Escribe el nombre del taller.');
-    AR.sesion.guardar(pin, nombre);
     $('bEntrar').disabled = true; $('bEntrar').textContent = 'Verificando…';
     try {
-      const d = await AR.catalogos.cargar(true);
-      if (d.rol !== 'mecanico' && d.rol !== 'taller') throw new Error('Este PIN no es de mecánicos.');
+      const r = await AR.api.login(pin, nombre);
+      if (r.rol !== 'mecanico' && r.rol !== 'taller') { AR.sesion.salir(); throw new Error('Este PIN no es de mecánicos.'); }
+      await AR.catalogos.cargar(true);
     } catch (e) {
       $('bEntrar').disabled = false; $('bEntrar').textContent = 'Entrar';
-      if (!e.red) { AR.sesion.salir(); return err(e.message); }
-      return err('Sin señal. Necesitas internet la primera vez.');
+      return err(e.red ? 'Sin señal. Necesitas internet para ingresar.' : e.message);
     }
+    $('lPin').value = '';
     AR.store.set('mec.perfil', { nombre, tipo: valor('lTipo'), taller: $('lTaller').value.trim(), tel: $('lTel').value.trim() });
     $('bEntrar').disabled = false; $('bEntrar').textContent = 'Entrar';
     iniciar();
@@ -343,18 +355,20 @@
     const box = $('accionPrincipal');
     const cierreVisibleAntes = !$('fCierre').classList.contains('ar-oculto');
     $('fCierre').classList.add('ar-oculto');
-    const otro = c.mecanicoNombre && !mio;
+    const otro = c.mecanicoNombre && !mio && AR.sesion.rol() !== 'taller';
     if (c.estado === 'EN_GRUA' || c.estado === 'CERRADA') {
       box.innerHTML = '<div class="ar-aviso ' + (c.estado === 'EN_GRUA' ? 'ambar' : 'ok') + '">' +
         (c.estado === 'EN_GRUA' ? 'Unidad enviada a grúa. El taller cerrará la asistencia al recibirla.' : 'Asistencia cerrada.') + '</div>';
       return;
     }
     if (!c.salidaEn && !c.llegadaEn) {
-      box.innerHTML = (otro ? '<div class="ar-aviso ambar">Asignada a <b>' + U.esc(c.mecanicoNombre) + '</b>. Si vas tú, tómala.</div>' : '') +
-        '<button class="ar-btn ar-btn-bloque ar-btn-grande" id="bSalida" type="button">🚗 Voy en camino</button>' +
+      if (otro) { box.innerHTML = '<div class="ar-aviso ambar">Asignada a <b>' + U.esc(c.mecanicoNombre) + '</b>. Si vas a atenderla tú, pide al taller que te la reasigne.</div>'; return; }
+      box.innerHTML = '<button class="ar-btn ar-btn-bloque ar-btn-grande" id="bSalida" type="button">🚗 Voy en camino</button>' +
         '<button class="ar-btn ar-btn-sec ar-btn-bloque" id="bLlegadaDirecta" type="button" style="margin-top:8px">Ya estoy en el sitio</button>';
       $('bSalida').onclick = () => accionSalida();
       $('bLlegadaDirecta').onclick = () => accionLlegada(true);
+    } else if (otro) {
+      box.innerHTML = '<div class="ar-aviso ambar">Asignada a <b>' + U.esc(c.mecanicoNombre) + '</b>.</div>';
     } else if (!c.llegadaEn) {
       box.innerHTML = '<button class="ar-btn ar-btn-bloque ar-btn-grande" id="bLlegada" type="button">📍 Llegué al sitio</button>';
       $('bLlegada').onclick = () => accionLlegada(false);
@@ -554,7 +568,12 @@
   setInterval(() => { if (!document.hidden && perfil() && !$('vLista').classList.contains('ar-oculto')) refrescar(true); }, 60000);
 
   llenarMecanicos(AR.catalogos.datos);
-  if (perfil() && AR.sesion.pin()) iniciar();
+  AR.on('sesion', (msg) => {
+    pintarUsuario(); mostrar('vLogin');
+    const p = perfil(); if (p) { $('lNombre').value = p.nombre; $('lTel').value = p.tel || ''; }
+    $('lError').textContent = msg + ' Lo pendiente no se perdió.'; $('lError').classList.remove('ar-oculto');
+  });
+  if (perfil() && AR.sesion.token()) iniciar();
   else { const p = perfil(); if (p) { $('lNombre').value = p.nombre; $('lTel').value = p.tel || ''; } mostrar('vLogin'); }
 })();
 </script>

@@ -22,7 +22,7 @@
 
   <section class="ar-card">
     <h2><span class="ar-paso">1</span>Conexión con Google Sheets</h2>
-    <div class="ar-campo"><label for="pin">PIN (usa el de Consulta o Taller)</label>
+    <div class="ar-campo"><label for="pin">PIN de 8 dígitos (usa el de Consulta o Taller)</label>
       <input id="pin" class="ar-input" inputmode="numeric" autocomplete="off" placeholder="PIN"></div>
     <div class="ar-fila-btn"><button class="ar-btn" id="bCat">Probar conexión y catálogos</button></div>
     <pre id="rCat" class="ar-oculto"></pre>
@@ -74,17 +74,17 @@
   const mostrar = (id, obj) => { const el = $(id); el.classList.remove('ar-oculto'); el.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2); };
   AR.sesion.iniciar('prueba');
   $('ver').textContent = AR.VERSION;
-  $('pin').value = AR.sesion.pin();
+  $('pin').setAttribute('maxlength', '8');
   if (!AR.api.configurada()) $('aviso').innerHTML = '<div class="ar-aviso ambar">Falta pegar la URL de Apps Script en <b>config.js</b>. Las pruebas 2 a 5 funcionan igual.</div>';
   if (!window.isSecureContext) $('aviso').innerHTML += '<div class="ar-aviso rojo">Abre esta página desde su enlace <b>https://</b> para que funcione el GPS.</div>';
 
   let gps = null, fotos = [], pdfBlob = null, caso = null;
 
   $('bCat').onclick = async () => {
-    AR.sesion.guardar($('pin').value, 'Prueba técnica');
     mostrar('rCat', 'Conectando…');
     try {
       const t0 = performance.now();
+      await AR.api.login($('pin').value, 'Prueba técnica'); $('pin').value = '';
       const d = await AR.catalogos.cargar(true);
       mostrar('rCat', { conexion: 'OK', rol: d.rol, segundos: ((performance.now() - t0) / 1000).toFixed(1),
         unidades: d.unidades.length, pilotos: d.pilotos.length, mecanicos: d.mecanicos.length, areas: d.areas.map(a => a.area), departamentos: d.departamentos.length, config: d.config });
